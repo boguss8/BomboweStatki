@@ -12,11 +12,40 @@ import (
 )
 
 func main() {
-	_, playerToken, err := https_requests.InitGame()
+	tries := 0
+	var playerToken string
+	for {
+		if tries >= 10 {
+			fmt.Println("Exceeded maximum number of tries. Exiting.")
+			return
+		}
+
+		var err error
+		_, playerToken, err = https_requests.InitGame()
+		if err != nil {
+			fmt.Printf("Error on attempt %d: %v\n", tries+1, err)
+			tries++
+			time.Sleep(time.Second)
+			continue
+		}
+
+		if playerToken == "" {
+			fmt.Println("X-Auth-Token not provided by the server.")
+			tries++
+			continue
+		}
+
+		break
+	}
+	playerName, err := https_requests.DisplayLobbyStatus()
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Error displaying lobby status:", err)
 		return
 	}
+
+	fmt.Println("Player's name:", playerName)
+
+	https_requests.GetLobbyInfo()
 
 	playerStates, opponentStates, shipStatus, err := board.Config(playerToken)
 	if err != nil {
@@ -158,6 +187,16 @@ func checkExtraTurn(playerToken string) bool {
 }
 
 func processOpponentShots(playerToken string, opponentStates [10][10]gui.State, playerStates [10][10]gui.State, ui *gui.GUI, shipStatus map[string]bool, playerBoard *gui.Board, dataCoords []string) {
+	for _, coord := range dataCoords {
+		col := int(coord[0] - 'A')
+		var row int
+		if len(coord) == 3 {
+			row = 9
+		} else {
+			row = int(coord[1] - '1')
+		}
+		playerStates[col][row] = gui.Ship
+	}
 	gameStatus, err := https_requests.GetGameStatus(playerToken)
 	if err != nil {
 		ui.Draw(gui.NewText(1, 1, "Error getting game status: "+err.Error(), nil))
