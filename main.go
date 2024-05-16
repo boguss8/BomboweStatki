@@ -12,41 +12,58 @@ import (
 )
 
 func main() {
-	tries := 0
-	var playerToken string
-	for {
-		if tries >= 10 {
-			fmt.Println("Exceeded maximum number of tries. Exiting.")
-			return
-		}
-
-		var err error
-		_, playerToken, err = https_requests.InitGame()
-		if err != nil {
-			fmt.Printf("Error on attempt %d: %v\n", tries+1, err)
-			tries++
-			time.Sleep(time.Second)
-			continue
-		}
-
-		if playerToken == "" {
-			fmt.Println("X-Auth-Token not provided by the server.")
-			tries++
-			continue
-		}
-
-		break
-	}
-	playerName, err := https_requests.DisplayLobbyStatus()
+	fmt.Print("Enter your username: ")
+	var username string
+	_, err := fmt.Scanln(&username)
 	if err != nil {
-		fmt.Println("Error displaying lobby status:", err)
+		fmt.Println("Error reading username:", err)
 		return
 	}
 
-	fmt.Println("Player's name:", playerName)
+	fmt.Print("Enter your game description: ")
+	var desc string
+	_, err = fmt.Scanln(&desc)
+	if err != nil {
+		fmt.Println("Error reading game description:", err)
+		return
+	}
 
-	https_requests.GetLobbyInfo()
+	_, playerToken, err := https_requests.InitGame(username, desc, "")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
+	for {
+		err = https_requests.RefreshLobby(playerToken)
+		if err != nil {
+			fmt.Println("Error refreshing lobby:", err)
+			return
+		}
+
+		lobbyInfo, _, err := https_requests.GetLobbyInfo()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		err = https_requests.DisplayLobbyStatus()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		for _, player := range lobbyInfo {
+			if player.Nick == playerToken && player.GameStatus != "waiting" {
+				fmt.Println("Opponent found!")
+				goto GameStart
+			}
+		}
+
+		time.Sleep(1 * time.Second)
+	}
+
+GameStart:
 	playerStates, opponentStates, shipStatus, err := board.Config(playerToken)
 	if err != nil {
 		fmt.Println(err)
@@ -187,16 +204,6 @@ func checkExtraTurn(playerToken string) bool {
 }
 
 func processOpponentShots(playerToken string, opponentStates [10][10]gui.State, playerStates [10][10]gui.State, ui *gui.GUI, shipStatus map[string]bool, playerBoard *gui.Board, dataCoords []string) {
-	for _, coord := range dataCoords {
-		col := int(coord[0] - 'A')
-		var row int
-		if len(coord) == 3 {
-			row = 9
-		} else {
-			row = int(coord[1] - '1')
-		}
-		playerStates[col][row] = gui.Ship
-	}
 	gameStatus, err := https_requests.GetGameStatus(playerToken)
 	if err != nil {
 		ui.Draw(gui.NewText(1, 1, "Error getting game status: "+err.Error(), nil))
