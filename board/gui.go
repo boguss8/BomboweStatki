@@ -1,11 +1,12 @@
 package board
 
 import (
+	"strconv"
+
 	gui "github.com/grupawp/warships-gui/v2"
 )
 
-// Config configures the game board
-func Config(playerToken string, getBoardInfo func(string) ([]string, error)) (playerStates [10][10]gui.State, opponentStates [10][10]gui.State, shipStatus map[string]bool, err error) {
+func Config(playerToken string, shipCoords []string) (playerStates [10][10]gui.State, opponentStates [10][10]gui.State, shipStatus map[string]bool, err error) {
 	playerStates = [10][10]gui.State{}
 	opponentStates = [10][10]gui.State{}
 
@@ -18,22 +19,20 @@ func Config(playerToken string, getBoardInfo func(string) ([]string, error)) (pl
 
 	shipStatus = make(map[string]bool)
 
-	boardInfo, err := getBoardInfo(playerToken)
-	if err != nil {
-		return playerStates, opponentStates, shipStatus, err
-	}
-
-	for _, coord := range boardInfo {
+	for _, coord := range shipCoords {
 		shipStatus[coord] = false
+		col := int(coord[0] - 'A')
+		row, _ := strconv.Atoi(coord[1:])
+		playerStates[col][row-1] = gui.Ship
 	}
 
 	return playerStates, opponentStates, shipStatus, nil
 }
 
-// GuiInit initializes the game GUI
 func GuiInit(playerStates [10][10]gui.State, opponentStates [10][10]gui.State) (ui *gui.GUI, playerBoard *gui.Board, opponentBoard *gui.Board) {
 	ui = gui.NewGUI(true)
 	boardConfig := gui.NewBoardConfig()
+
 	boardConfig.HitColor = gui.NewColor(0, 255, 0)
 	boardConfig.MissColor = gui.NewColor(255, 0, 0)
 	boardConfig.ShipColor = gui.NewColor(0, 0, 255)

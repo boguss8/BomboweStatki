@@ -25,7 +25,7 @@ func AddToLobby() {
 		return
 	}
 
-	playerToken, err := InitGame(username, desc, "")
+	playerToken, shipCoords, err := InitGame(username, desc, "")
 	if err != nil {
 		fmt.Println("Error initializing game:", err)
 		return
@@ -67,7 +67,7 @@ func AddToLobby() {
 	}
 
 	// Launch the game board
-	playerStates, opponentStates, shipStatus, err := board.Config(playerToken, GetBoardInfo)
+	playerStates, opponentStates, shipStatus, err := board.Config(playerToken, shipCoords)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -188,13 +188,13 @@ func startGameWithOpponent(opponentUsername string) {
 		return
 	}
 
-	playerToken, err := InitGame(username, desc, opponentUsername)
+	playerToken, shipCoords, err := InitGame(username, desc, opponentUsername)
 	if err != nil {
 		fmt.Println("Error initializing game:", err)
 		return
 	}
 
-	playerStates, opponentStates, shipStatus, err := board.Config(playerToken, GetBoardInfo)
+	playerStates, opponentStates, shipStatus, err := board.Config(playerToken, shipCoords)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -215,4 +215,13 @@ func startGameWithOpponent(opponentUsername string) {
 	go playerBoardOperations(playerToken, playerBoard, opponentStates, playerStates, ui, shipStatus, dataCoords)
 
 	ui.Start(context.TODO(), nil)
+}
+
+func DisplayStats(stats []PlayerStats) {
+	for i, player := range stats {
+		if i >= 10 {
+			break
+		}
+		fmt.Printf("Rank: %d, Nick: %s, Points: %d, Wins: %d, Games: %d\n", player.Rank, player.Nick, player.Points, player.Wins, player.Games)
+	}
 }

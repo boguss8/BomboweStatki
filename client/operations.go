@@ -5,6 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	gui "github.com/grupawp/warships-gui/v2"
@@ -12,6 +15,8 @@ import (
 
 // operations
 func opponentBoardOperations(playerToken string, opponentBoard *gui.Board, playerStates, opponentStates [10][10]gui.State, shotCoordinates map[string]bool, ui *gui.GUI) {
+	var totalShots int
+	var successfulShots int
 	for {
 		char := opponentBoard.Listen(context.TODO())
 		col := int(char[0] - 'A')
@@ -49,6 +54,8 @@ func opponentBoardOperations(playerToken string, opponentBoard *gui.Board, playe
 				continue
 			}
 
+			totalShots++
+
 			var fireMap map[string]interface{}
 			err = json.Unmarshal([]byte(fireResponse), &fireMap)
 			if err != nil {
@@ -60,6 +67,7 @@ func opponentBoardOperations(playerToken string, opponentBoard *gui.Board, playe
 			if resultExists {
 				if result == "hit" || result == "sunk" {
 					opponentStates[col][row] = gui.Hit
+					successfulShots++
 				} else if result == "miss" {
 					opponentStates[col][row] = gui.Miss
 				}
@@ -68,6 +76,13 @@ func opponentBoardOperations(playerToken string, opponentBoard *gui.Board, playe
 			} else {
 				opponentStates[col][row] = gui.Empty
 			}
+
+			var shotAccuracyText = "Shot accuracy: N/A"
+			if totalShots > 0 {
+				shotAccuracy := (float64(successfulShots) / float64(totalShots)) * 100
+				shotAccuracyText = fmt.Sprintf("Shot accuracy: %.2f%%", shotAccuracy)
+			}
+			ui.Draw(gui.NewText(1, 26, shotAccuracyText, nil))
 
 			opponentBoard.SetStates(opponentStates)
 			boardInfo := make([]string, 10)
@@ -92,7 +107,7 @@ func opponentBoardOperations(playerToken string, opponentBoard *gui.Board, playe
 
 func playerBoardOperations(playerToken string, playerBoard *gui.Board, opponentStates [10][10]gui.State, playerStates [10][10]gui.State, ui *gui.GUI, shipStatus map[string]bool, dataCoords []string) {
 	for {
-		processOpponentShots(playerToken, opponentStates, playerStates, ui, shipStatus, playerBoard, dataCoords)
+		ProcessOpponentShots(playerToken, playerBoard, playerStates, opponentStates, ui, shipStatus, playerBoard, dataCoords)
 
 		displayGameStatus(playerToken, ui)
 
@@ -127,7 +142,7 @@ func checkExtraTurn(playerToken string) bool {
 	return false
 }
 
-func processOpponentShots(playerToken string, opponentStates [10][10]gui.State, playerStates [10][10]gui.State, ui *gui.GUI, shipStatus map[string]bool, playerBoard *gui.Board, dataCoords []string) {
+func ProcessOpponentShots(playerToken string, opponentBoard *gui.Board, playerStates, opponentStates [10][10]gui.State, ui *gui.GUI, shipStatus map[string]bool, playerBoard *gui.Board, dataCoords []string) {
 	gameStatus, err := GetGameStatus(playerToken)
 	if err != nil {
 		ui.Draw(gui.NewText(1, 1, "Error getting game status: "+err.Error(), nil))
@@ -208,12 +223,18 @@ func displayGameStatus(playerToken string, ui *gui.GUI) {
 	var statusMap map[string]interface{}
 	err = json.Unmarshal([]byte(gameStatus), &statusMap)
 	if err != nil {
-		ui.Draw(gui.NewText(1, 1, "Error parsing game status: "+err.Error(), nil))
+		ui.Draw(gui.NewText(1, 1, "Error getting game status: "+err.Error(), nil))
 		return
 	}
 
 	gameStatusStr, gameStatusExists := statusMap["game_status"].(string)
 	lastGameStatus, lastGameStatusExists := statusMap["last_game_status"].(string)
+
+	timerValue, timerExists := statusMap["timer"].(float64)
+	if timerExists {
+		timerText := fmt.Sprintf("Timer: %.0f", timerValue)
+		ui.Draw(gui.NewText(1, 24, timerText, nil))
+	}
 
 	if gameStatusExists && gameStatusStr != "ended" {
 		shouldFireText := "Should fire: No!"
@@ -224,24 +245,46 @@ func displayGameStatus(playerToken string, ui *gui.GUI) {
 		ui.Draw(gui.NewText(1, 0, shouldFireText, nil))
 	}
 
+	opponent, opponentExists := statusMap["opponent"].(string)
+	if opponentExists {
+		ui.Draw(gui.NewText(1, 1, "Opponent name: "+opponent, nil))
+	}
+
 	oppDescValue, err := GetGameDescription(playerToken)
 	if err != nil {
 		ui.Draw(gui.NewText(1, 1, "Error getting game description: "+err.Error(), nil))
 		return
 	}
+
 	oppDescText := fmt.Sprintf("Opponent description: %s", oppDescValue)
-	ui.Draw(gui.NewText(1, 1, oppDescText, nil))
+	ui.Draw(gui.NewText(1, 2, oppDescText, nil))
 
 	var oppShotsText string
 	oppShotsValue, oppShotsExists := statusMap["opp_shots"].([]interface{})
 	if oppShotsExists {
 		oppShotsText = fmt.Sprintf("Opponent shots: %v", oppShotsValue)
 	}
-	ui.Draw(gui.NewText(1, 2, oppShotsText, nil))
+	ui.Draw(gui.NewText(1, 27, oppShotsText, nil))
 
 	if gameStatusExists && lastGameStatusExists && gameStatusStr == "ended" && lastGameStatus == "lose" {
 		ui.Draw(gui.NewText(1, 0, " Unfortunately You Lose", nil))
 	} else if gameStatusStr == "ended" && lastGameStatus == "win" {
 		ui.Draw(gui.NewText(1, 0, " Congratulations You Win", nil))
 	}
+}
+
+func LeaveGame(playerToken string) error {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGQUIT)
+
+	go func() {
+		<-c
+		fmt.Println("CTRL + \\ received. Leaving the game...")
+		err := AbandonGame(playerToken)
+		if err != nil {
+			fmt.Println("Error abandoning game:", err)
+		}
+		os.Exit(0)
+	}()
+	return nil
 }

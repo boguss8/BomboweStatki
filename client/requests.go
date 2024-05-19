@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func InitGame(username string, desc string, opponentName string) (string, error) {
+func InitGame(username string, desc string, opponentName string) (string, []string, error) {
 	data := map[string]interface{}{
 		"coords":      []string{"A2", "A4", "B9", "C7", "D1", "D2", "D3", "D4", "D7", "E7", "F1", "F2", "F3", "F5", "G5", "G8", "G9", "I4", "J4", "J8"},
 		"desc":        desc,
@@ -22,22 +22,22 @@ func InitGame(username string, desc string, opponentName string) (string, error)
 
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	resp, err := http.Post("https://go-pjatk-server.fly.dev/api/game", "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return "", nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	playerToken := resp.Header.Get("x-auth-token")
 
-	return playerToken, nil
+	return playerToken, data["coords"].([]string), nil
 }
 
 type Player struct {
@@ -308,4 +308,59 @@ func GetGameDescription(playerToken string) (string, error) {
 	}
 
 	return gameDesc["opp_desc"], nil
+}
+
+type PlayerStats struct {
+	Games  int    `json:"games"`
+	Nick   string `json:"nick"`
+	Points int    `json:"points"`
+	Rank   int    `json:"rank"`
+	Wins   int    `json:"wins"`
+}
+
+type StatsResponse struct {
+	Stats []PlayerStats `json:"stats"`
+}
+
+func GetStats() ([]PlayerStats, error) {
+	resp, err := http.Get("https://go-pjatk-server.fly.dev/api/stats")
+	if err != nil {
+		return nil, fmt.Errorf("error getting stats: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading response body: %w", err)
+	}
+
+	var statsResponse StatsResponse
+	err = json.Unmarshal(body, &statsResponse)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshalling response: %w", err)
+	}
+
+	return statsResponse.Stats, nil
+}
+
+func AbandonGame(playerToken string) error {
+	client := &http.Client{}
+
+	req, err := http.NewRequest("DELETE", "https://go-pjatk-server.fly.dev/api/game/abandon", nil)
+	if err != nil {
+		return fmt.Errorf("error creating request: %v", err)
+	}
+
+	req.Header.Add("X-Auth-Token", playerToken)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("error sending request: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("received non-OK status code: %d", resp.StatusCode)
+	}
+
+	return nil
 }

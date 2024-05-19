@@ -1,8 +1,6 @@
 package client
 
 import (
-	board "BomboweStatki/board"
-	game "BomboweStatki/game"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -12,9 +10,7 @@ import (
 
 func PlayerBoardOperations(playerToken string, playerBoard *gui.Board, opponentStates [10][10]gui.State, playerStates [10][10]gui.State, ui *gui.GUI, shipStatus map[string]bool, dataCoords []string) {
 	for {
-		ProcessOpponentShots(playerToken, opponentStates, playerStates, ui, shipStatus, playerBoard, dataCoords)
-
-		board.UpdateAndDisplayGameStatus(playerToken, ui, GetGameStatus)
+		ProcessOpponentShots(playerToken, playerBoard, playerStates, opponentStates, ui, shipStatus, playerBoard, dataCoords)
 
 		extraTurn := CheckExtraTurn(playerToken, GetGameStatus)
 		if extraTurn {
@@ -45,74 +41,4 @@ func CheckExtraTurn(playerToken string, getGameStatus func(string) (string, erro
 	}
 
 	return false
-}
-
-func ProcessOpponentShots(playerToken string, opponentStates [10][10]gui.State, playerStates [10][10]gui.State, ui *gui.GUI, shipStatus map[string]bool, playerBoard *gui.Board, dataCoords []string) {
-	gameStatus, err := GetGameStatus(playerToken)
-	if err != nil {
-		ui.Draw(gui.NewText(1, 1, "Error getting game status: "+err.Error(), nil))
-		return
-	}
-
-	var statusMap map[string]interface{}
-	err = json.Unmarshal([]byte(gameStatus), &statusMap)
-	if err != nil {
-		ui.Draw(gui.NewText(1, 1, "Error parsing game status: "+err.Error(), nil))
-		return
-	}
-
-	oppShots, ok := statusMap["opp_shots"].([]interface{})
-	if ok {
-		for _, shot := range oppShots {
-			coord := shot.(string)
-			col := int(coord[0] - 'A')
-			var row int
-			if len(coord) == 3 {
-				row = 9
-			} else {
-				row = int(coord[1] - '1')
-			}
-
-			isHit := false
-			for _, staticCoord := range dataCoords {
-				if staticCoord == coord {
-					isHit = true
-					break
-				}
-			}
-
-			if isHit {
-				playerStates[col][row] = gui.Hit
-				allPartsHit := true
-				for _, state := range playerStates[col] {
-					if state == gui.Ship {
-						allPartsHit = false
-						break
-					}
-				}
-				if allPartsHit {
-					shipStatus[coord] = true
-				}
-			} else {
-				playerStates[col][row] = gui.Miss
-			}
-		}
-	}
-
-	boardInfo := make([]string, 10)
-	for i, row := range playerStates {
-		for _, state := range row {
-			switch state {
-			case gui.Hit:
-				boardInfo[i] += "H"
-			case gui.Miss:
-				boardInfo[i] += "M"
-			case gui.Ship:
-				boardInfo[i] += "S"
-			default:
-				boardInfo[i] += " "
-			}
-		}
-	}
-	game.UpdateBoardStates(playerBoard, boardInfo)
 }
