@@ -12,6 +12,30 @@ import (
 )
 
 func main() {
+	for {
+		var choice int
+		fmt.Println("Choose an option:")
+		fmt.Println("1. Add yourself to the lobby")
+		fmt.Println("2. Challenge an opponent")
+		fmt.Print("Enter your choice: ")
+		_, err := fmt.Scanln(&choice)
+		if err != nil {
+			fmt.Println("Error reading choice:", err)
+			return
+		}
+
+		switch choice {
+		case 1:
+			addToLobby()
+		case 2:
+			challengeOpponent()
+		default:
+			fmt.Println("Invalid choice. Please try again.")
+		}
+	}
+}
+
+func addToLobby() {
 	fmt.Print("Enter your username: ")
 	var username string
 	_, err := fmt.Scanln(&username)
@@ -28,63 +52,113 @@ func main() {
 		return
 	}
 
-	_, playerToken, err := https_requests.InitGame(username, desc, "")
+	playerToken, err := https_requests.InitGame(username, desc, "")
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Error initializing game:", err)
 		return
 	}
 
+	fmt.Println("Player added to lobby, waiting for an opponent...")
+
+	go refreshLobbyLoop(playerToken)
+
+	waitForOpponent(playerToken)
+}
+
+func challengeOpponent() {
 	for {
-		err = https_requests.RefreshLobby(playerToken)
+		fmt.Println("Choose an option:")
+		fmt.Println("1. Refresh lobby (display current players)")
+		fmt.Println("2. Challenge opponent by username")
+		fmt.Print("Enter your choice: ")
+
+		var choice int
+		_, err := fmt.Scanln(&choice)
+		if err != nil {
+			fmt.Println("Error reading choice:", err)
+			return
+		}
+
+		switch choice {
+		case 1:
+			err := https_requests.DisplayLobbyStatus()
+			if err != nil {
+				fmt.Println("Error refreshing lobby:", err)
+				return
+			}
+		case 2:
+			fmt.Print("Enter opponent's username: ")
+			var opponentUsername string
+			_, err := fmt.Scanln(&opponentUsername)
+			if err != nil {
+				fmt.Println("Error reading opponent's username:", err)
+				return
+			}
+
+			// Send challenge and start the game
+			startGameWithOpponent(opponentUsername)
+		default:
+			fmt.Println("Invalid choice")
+		}
+	}
+}
+
+func refreshLobbyLoop(playerToken string) {
+	for {
+		// Refresh lobby status to prevent auto-removal from the lobby
+		err := https_requests.RefreshLobby(playerToken)
 		if err != nil {
 			fmt.Println("Error refreshing lobby:", err)
 			return
 		}
+		time.Sleep(2 * time.Second)
+	}
+}
 
-		lobbyInfo, _, err := https_requests.GetLobbyInfo()
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		err = https_requests.DisplayLobbyStatus()
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		for _, player := range lobbyInfo {
-			if player.Nick == playerToken && player.GameStatus != "waiting" {
-				fmt.Println("Opponent found!")
-				goto GameStart
-			}
-		}
-
-		time.Sleep(1 * time.Second)
+func DisplayLobbyStatus() (bool, error) {
+	lobbyInfo, rawResponse, err := GetLobbyInfo()
+	if err != nil {
+		return false, err
 	}
 
-GameStart:
-	playerStates, opponentStates, shipStatus, err := board.Config(playerToken)
+	fmt.Println("Raw response:", rawResponse)
+
+	if len(lobbyInfo) == 0 {
+		return true, nil // Lobby is empty
+	}
+
+	for _, player := range lobbyInfo {
+		fmt.Printf("Game Status: %s, Nick: %s\n", player.GameStatus, player.Nick)
+	}
+
+	return false, nil
+}
+
+func displayLobby() {
+	lobbyInfo, _, err := https_requests.GetLobbyInfo()
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	ui, playerBoard, opponentBoard := board.GuiInit(playerStates, opponentStates)
-
-	var shotCoordinates = make(map[string]bool)
-
-	dataCoords, err := https_requests.GetBoardInfo(playerToken)
-	if err != nil {
-		fmt.Println("Error getting board info:", err)
-		return
+	fmt.Println("Players in lobby:")
+	for _, player := range lobbyInfo {
+		fmt.Println(player.Nick)
 	}
+}
 
-	go opponentBoardOperations(playerToken, opponentBoard, playerStates, opponentStates, shotCoordinates, ui)
+func startGameWithOpponent(opponentUsername string) {
+}
 
-	go playerBoardOperations(playerToken, playerBoard, opponentStates, playerStates, ui, shipStatus, dataCoords)
+func GetLobbyInfo() ([]https_requests.Player, string, error) {
+	return nil, "", nil
+}
 
-	ui.Start(context.TODO(), nil)
+func challengePlayer(opponentName string) error {
+	return nil
+}
+
+func waitForOpponent(playerToken string) {
 }
 
 func opponentBoardOperations(playerToken string, opponentBoard *gui.Board, playerStates, opponentStates [10][10]gui.State, shotCoordinates map[string]bool, ui *gui.GUI) {
@@ -108,7 +182,7 @@ func opponentBoardOperations(playerToken string, opponentBoard *gui.Board, playe
 		err = json.Unmarshal([]byte(gameStatus), &statusMap)
 		if err != nil {
 			ui.Draw(gui.NewText(1, 1, "Error parsing game status: "+err.Error(), nil))
-			continue
+			return
 		}
 
 		shouldFire, ok := statusMap["should_fire"].(bool)
@@ -220,37 +294,38 @@ func processOpponentShots(playerToken string, opponentStates [10][10]gui.State, 
 	oppShots, ok := statusMap["opp_shots"].([]interface{})
 	if ok {
 		for _, shot := range oppShots {
-			coord := shot.(string)
-			col := int(coord[0] - 'A')
-			var row int
-			if len(coord) == 3 {
-				row = 9
-			} else {
-				row = int(coord[1] - '1')
-			}
-
-			isHit := false
-			for _, staticCoord := range dataCoords {
-				if staticCoord == coord {
-					isHit = true
-					break
+			if coord, isString := shot.(string); isString {
+				col := int(coord[0] - 'A')
+				var row int
+				if len(coord) == 3 {
+					row = 9
+				} else {
+					row = int(coord[1] - '1')
 				}
-			}
 
-			if isHit {
-				playerStates[col][row] = gui.Hit
-				allPartsHit := true
-				for _, state := range playerStates[col] {
-					if state == gui.Ship {
-						allPartsHit = false
+				isHit := false
+				for _, staticCoord := range dataCoords {
+					if staticCoord == coord {
+						isHit = true
 						break
 					}
 				}
-				if allPartsHit {
-					shipStatus[coord] = true
+
+				if isHit {
+					playerStates[col][row] = gui.Hit
+					allPartsHit := true
+					for _, state := range playerStates[col] {
+						if state == gui.Ship {
+							allPartsHit = false
+							break
+						}
+					}
+					if allPartsHit {
+						shipStatus[coord] = true
+					}
+				} else {
+					playerStates[col][row] = gui.Miss
 				}
-			} else {
-				playerStates[col][row] = gui.Miss
 			}
 		}
 	}
@@ -287,10 +362,10 @@ func displayGameStatus(playerToken string, ui *gui.GUI) {
 		return
 	}
 
-	gameStatus, gameStatusExists := statusMap["game_status"].(string)
+	gameStatusStr, gameStatusExists := statusMap["game_status"].(string)
 	lastGameStatus, lastGameStatusExists := statusMap["last_game_status"].(string)
 
-	if gameStatusExists && gameStatus != "ended" {
+	if gameStatusExists && gameStatusStr != "ended" {
 		shouldFireText := "Should fire: No!"
 		shouldFire, shouldFireExists := statusMap["should_fire"].(bool)
 		if shouldFireExists && shouldFire {
@@ -314,9 +389,9 @@ func displayGameStatus(playerToken string, ui *gui.GUI) {
 	}
 	ui.Draw(gui.NewText(1, 2, oppShotsText, nil))
 
-	if gameStatusExists && lastGameStatusExists && gameStatus == "ended" && lastGameStatus == "lose" {
+	if gameStatusExists && lastGameStatusExists && gameStatusStr == "ended" && lastGameStatus == "lose" {
 		ui.Draw(gui.NewText(1, 0, " Unfortunately You Lose", nil))
-	} else if gameStatus == "ended" && lastGameStatus == "win" {
+	} else if gameStatusStr == "ended" && lastGameStatus == "win" {
 		ui.Draw(gui.NewText(1, 0, " Congratulations You Win", nil))
 	}
 }

@@ -6,12 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"net"
 	"net/http"
 	"time"
 )
 
-func InitGame(username string, desc string, opponentName string) (map[string]interface{}, string, error) {
+func InitGame(username string, desc string, opponentName string) (string, error) {
 	data := map[string]interface{}{
 		"coords":      []string{"A2", "A4", "B9", "C7", "D1", "D2", "D3", "D4", "D7", "E7", "F1", "F2", "F3", "F5", "G5", "G8", "G9", "I4", "J4", "J8"},
 		"desc":        desc,
@@ -19,44 +19,25 @@ func InitGame(username string, desc string, opponentName string) (map[string]int
 		"target_nick": opponentName,
 		"wpbot":       false,
 	}
+
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		return nil, "", err
+		return "", err
 	}
 
 	resp, err := http.Post("https://go-pjatk-server.fly.dev/api/game", "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
-		return nil, "", err
+		return "", err
 	}
 	defer resp.Body.Close()
 
-	for {
-		resp, err := http.Get("http://example.com")
-		if err != nil {
-			return nil, "", err
-		}
-
-		if resp.StatusCode == 200 {
-			break
-		} else {
-			time.Sleep(1 * time.Second)
-		}
-	}
-
-	playerStatsResponse, err := GetPlayerStats("Jan_Niecny")
-	if err != nil {
-		return nil, "", err
-	}
-
-	var playerStats map[string]map[string]interface{}
-	err = json.Unmarshal([]byte(playerStatsResponse), &playerStats)
-	if err != nil {
-		return nil, "", err
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	playerToken := resp.Header.Get("x-auth-token")
 
-	return data, playerToken, nil
+	return playerToken, nil
 }
 
 type Player struct {
@@ -71,7 +52,7 @@ func GetLobbyInfo() ([]Player, string, error) {
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, "", err
 	}
@@ -89,6 +70,7 @@ func GetLobbyInfo() ([]Player, string, error) {
 		if err != nil {
 			return nil, "", err
 		}
+
 	case map[string]interface{}:
 		var singlePlayer Player
 		err = json.Unmarshal(body, &singlePlayer)
@@ -102,6 +84,7 @@ func GetLobbyInfo() ([]Player, string, error) {
 
 	return lobbyInfo, string(body), nil
 }
+
 func DisplayLobbyStatus() error {
 	lobbyInfo, rawResponse, err := GetLobbyInfo()
 	if err != nil {
@@ -116,32 +99,28 @@ func DisplayLobbyStatus() error {
 
 	return nil
 }
-func RefreshLobby(authToken string) error {
-	client := &http.Client{}
-
-	req, err := http.NewRequest("GET", "https://go-pjatk-server.fly.dev/api/game/refresh", nil)
+func RefreshLobby(playerToken string) error {
+	req, err := http.NewRequest("GET", "https://go-pjatk-server.fly.dev/api/lobby", nil)
 	if err != nil {
 		return fmt.Errorf("error creating request: %v", err)
 	}
 
-	req.Header.Add("X-Auth-Token", authToken)
+	req.Header.Set("X-Auth-Token", playerToken)
 
-	for i := 0; i < 3; i++ { // Retry up to 3 times
-		resp, err := client.Do(req)
-		if err != nil {
-			return fmt.Errorf("error sending request: %v", err)
-		}
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("error sending request: %v", err)
+	}
+	defer resp.Body.Close()
 
-		if resp.StatusCode == http.StatusOK {
-			return nil
-		} else if resp.StatusCode == http.StatusServiceUnavailable {
-			time.Sleep(5 * time.Second) // Wait for 5 seconds before retrying
-		} else {
-			return fmt.Errorf("received non-OK status code: %d", resp.StatusCode)
-		}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("received non-OK status code: %d", resp.StatusCode)
 	}
 
-	return fmt.Errorf("received non-OK status code: 503 after 3 retries")
+	// Handle the response body as needed
+
+	return nil
 }
 
 func GetPlayerStats(nick string) (string, error) {
@@ -191,7 +170,7 @@ func GetBoardInfoWithRetry(playerToken string) ([]string, error) {
 			return boardInfo, nil
 		}
 
-		if isRetryableError(err) {
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 			delay := initialDelay * time.Duration(retry+1)
 			time.Sleep(delay)
 			continue
@@ -254,11 +233,6 @@ func GetBoardInfo(playerToken string) ([]string, error) {
 	}
 
 	return nil, errors.New("exceeded maximum number of retries")
-}
-
-func isRetryableError(err error) bool {
-	//always retry
-	return true
 }
 
 func GetGameStatus(playerToken string) (string, error) {
