@@ -35,36 +35,6 @@ func main() {
 	}
 }
 
-func addToLobby() {
-	fmt.Print("Enter your username: ")
-	var username string
-	_, err := fmt.Scanln(&username)
-	if err != nil {
-		fmt.Println("Error reading username:", err)
-		return
-	}
-
-	fmt.Print("Enter your game description: ")
-	var desc string
-	_, err = fmt.Scanln(&desc)
-	if err != nil {
-		fmt.Println("Error reading game description:", err)
-		return
-	}
-
-	playerToken, err := https_requests.InitGame(username, desc, "")
-	if err != nil {
-		fmt.Println("Error initializing game:", err)
-		return
-	}
-
-	fmt.Println("Player added to lobby, waiting for an opponent...")
-
-	go refreshLobbyLoop(playerToken)
-
-	waitForOpponent(playerToken)
-}
-
 func challengeOpponent() {
 	for {
 		fmt.Println("Choose an option:")
@@ -95,7 +65,6 @@ func challengeOpponent() {
 				return
 			}
 
-			// Send challenge and start the game
 			startGameWithOpponent(opponentUsername)
 		default:
 			fmt.Println("Invalid choice")
@@ -103,14 +72,92 @@ func challengeOpponent() {
 	}
 }
 
+func addToLobby() {
+	fmt.Print("Enter your username: ")
+	var username string
+	_, err := fmt.Scanln(&username)
+	if err != nil {
+		fmt.Println("Error reading username:", err)
+		return
+	}
+
+	fmt.Print("Enter your game description: ")
+	var desc string
+	_, err = fmt.Scanln(&desc)
+	if err != nil {
+		fmt.Println("Error reading game description:", err)
+		return
+	}
+
+	playerToken, err := https_requests.InitGame(username, desc, "")
+	if err != nil {
+		fmt.Println("Error initializing game:", err)
+		return
+	}
+
+	fmt.Println("Player added to lobby, waiting for an opponent...")
+	fmt.Println("Press Enter to exit...")
+
+	for {
+		lobbyInfo, _, err := https_requests.GetLobbyInfo()
+		if err != nil {
+			fmt.Println("Error getting lobby info:", err)
+			return
+		}
+
+		userInLobby := false
+		for _, player := range lobbyInfo {
+			if player.Nick == username {
+				userInLobby = true
+				if player.GameStatus != "waiting" {
+					fmt.Println("Game started!")
+					return
+				}
+			}
+		}
+
+		if !userInLobby {
+			fmt.Println("User not in lobby, refreshing...")
+			break
+		}
+		refreshLobbyLoop(playerToken)
+		time.Sleep(1 * time.Second)
+	}
+
+	playerStates, opponentStates, shipStatus, err := board.Config(playerToken)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	ui, playerBoard, opponentBoard := board.GuiInit(playerStates, opponentStates)
+
+	var shotCoordinates = make(map[string]bool)
+
+	dataCoords, err := https_requests.GetBoardInfo(playerToken)
+	if err != nil {
+		fmt.Println("Error getting board info:", err)
+		return
+	}
+
+	go opponentBoardOperations(playerToken, opponentBoard, playerStates, opponentStates, shotCoordinates, ui)
+
+	go playerBoardOperations(playerToken, playerBoard, opponentStates, playerStates, ui, shipStatus, dataCoords)
+
+	ui.Start(context.TODO(), nil)
+
+	fmt.Scanln()
+}
+
 func refreshLobbyLoop(playerToken string) {
 	for {
-		// Refresh lobby status to prevent auto-removal from the lobby
 		err := https_requests.RefreshLobby(playerToken)
 		if err != nil {
 			fmt.Println("Error refreshing lobby:", err)
 			return
 		}
+		fmt.Println("Refreshed lobby")
+
 		time.Sleep(2 * time.Second)
 	}
 }
@@ -134,31 +181,54 @@ func DisplayLobbyStatus() (bool, error) {
 	return false, nil
 }
 
-func displayLobby() {
-	lobbyInfo, _, err := https_requests.GetLobbyInfo()
+func startGameWithOpponent(opponentUsername string) {
+	fmt.Print("Enter your username: ")
+	var username string
+	_, err := fmt.Scanln(&username)
+	if err != nil {
+		fmt.Println("Error reading username:", err)
+		return
+	}
+
+	fmt.Print("Enter your game description: ")
+	var desc string
+	_, err = fmt.Scanln(&desc)
+	if err != nil {
+		fmt.Println("Error reading game description:", err)
+		return
+	}
+
+	playerToken, err := https_requests.InitGame(username, desc, opponentUsername)
+	if err != nil {
+		fmt.Println("Error initializing game:", err)
+		return
+	}
+
+	playerStates, opponentStates, shipStatus, err := board.Config(playerToken)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	fmt.Println("Players in lobby:")
-	for _, player := range lobbyInfo {
-		fmt.Println(player.Nick)
-	}
-}
+	ui, playerBoard, opponentBoard := board.GuiInit(playerStates, opponentStates)
 
-func startGameWithOpponent(opponentUsername string) {
+	var shotCoordinates = make(map[string]bool)
+
+	dataCoords, err := https_requests.GetBoardInfo(playerToken)
+	if err != nil {
+		fmt.Println("Error getting board info:", err)
+		return
+	}
+
+	go opponentBoardOperations(playerToken, opponentBoard, playerStates, opponentStates, shotCoordinates, ui)
+
+	go playerBoardOperations(playerToken, playerBoard, opponentStates, playerStates, ui, shipStatus, dataCoords)
+
+	ui.Start(context.TODO(), nil)
 }
 
 func GetLobbyInfo() ([]https_requests.Player, string, error) {
 	return nil, "", nil
-}
-
-func challengePlayer(opponentName string) error {
-	return nil
-}
-
-func waitForOpponent(playerToken string) {
 }
 
 func opponentBoardOperations(playerToken string, opponentBoard *gui.Board, playerStates, opponentStates [10][10]gui.State, shotCoordinates map[string]bool, ui *gui.GUI) {

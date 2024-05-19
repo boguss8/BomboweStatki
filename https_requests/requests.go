@@ -99,28 +99,32 @@ func DisplayLobbyStatus() error {
 
 	return nil
 }
-func RefreshLobby(playerToken string) error {
-	req, err := http.NewRequest("GET", "https://go-pjatk-server.fly.dev/api/lobby", nil)
+func RefreshLobby(authToken string) error {
+	client := &http.Client{}
+
+	req, err := http.NewRequest("GET", "https://go-pjatk-server.fly.dev/api/game/refresh", nil)
 	if err != nil {
 		return fmt.Errorf("error creating request: %v", err)
 	}
 
-	req.Header.Set("X-Auth-Token", playerToken)
+	req.Header.Add("X-Auth-Token", authToken)
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("error sending request: %v", err)
+	for i := 0; i < 3; i++ { // Retry up to 3 times
+		resp, err := client.Do(req)
+		if err != nil {
+			return fmt.Errorf("error sending request: %v", err)
+		}
+
+		if resp.StatusCode == http.StatusOK {
+			return nil
+		} else if resp.StatusCode == http.StatusServiceUnavailable {
+			time.Sleep(5 * time.Second) // Wait for 5 seconds before retrying
+		} else {
+			return fmt.Errorf("received non-OK status code: %d", resp.StatusCode)
+		}
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("received non-OK status code: %d", resp.StatusCode)
-	}
-
-	// Handle the response body as needed
-
-	return nil
+	return fmt.Errorf("received non-OK status code: 503 after 3 retries")
 }
 
 func GetPlayerStats(nick string) (string, error) {
