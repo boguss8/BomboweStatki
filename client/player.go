@@ -1,7 +1,8 @@
-package board
+package client
 
 import (
-	https_requests "BomboweStatki/https_requests"
+	board "BomboweStatki/board"
+	game "BomboweStatki/game"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -13,9 +14,9 @@ func PlayerBoardOperations(playerToken string, playerBoard *gui.Board, opponentS
 	for {
 		ProcessOpponentShots(playerToken, opponentStates, playerStates, ui, shipStatus, playerBoard, dataCoords)
 
-		UpdateAndDisplayGameStatus(playerToken, ui)
+		board.UpdateAndDisplayGameStatus(playerToken, ui, GetGameStatus)
 
-		extraTurn := CheckExtraTurn(playerToken)
+		extraTurn := CheckExtraTurn(playerToken, GetGameStatus)
 		if extraTurn {
 			continue
 		}
@@ -24,8 +25,8 @@ func PlayerBoardOperations(playerToken string, playerBoard *gui.Board, opponentS
 	}
 }
 
-func CheckExtraTurn(playerToken string) bool {
-	gameStatus, err := https_requests.GetGameStatus(playerToken)
+func CheckExtraTurn(playerToken string, getGameStatus func(string) (string, error)) bool {
+	gameStatus, err := getGameStatus(playerToken)
 	if err != nil {
 		fmt.Println("Error getting game status:", err)
 		return false
@@ -47,7 +48,7 @@ func CheckExtraTurn(playerToken string) bool {
 }
 
 func ProcessOpponentShots(playerToken string, opponentStates [10][10]gui.State, playerStates [10][10]gui.State, ui *gui.GUI, shipStatus map[string]bool, playerBoard *gui.Board, dataCoords []string) {
-	gameStatus, err := https_requests.GetGameStatus(playerToken)
+	gameStatus, err := GetGameStatus(playerToken)
 	if err != nil {
 		ui.Draw(gui.NewText(1, 1, "Error getting game status: "+err.Error(), nil))
 		return
@@ -113,5 +114,5 @@ func ProcessOpponentShots(playerToken string, opponentStates [10][10]gui.State, 
 			}
 		}
 	}
-	UpdateBoardStates(playerBoard, boardInfo)
+	game.UpdateBoardStates(playerBoard, boardInfo)
 }

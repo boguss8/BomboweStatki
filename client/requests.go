@@ -1,4 +1,4 @@
-package https_requests
+package client
 
 import (
 	"bytes"
@@ -17,7 +17,7 @@ func InitGame(username string, desc string, opponentName string) (string, error)
 		"desc":        desc,
 		"nick":        username,
 		"target_nick": opponentName,
-		"wpbot":       false,
+		"wpbot":       true,
 	}
 
 	jsonData, err := json.Marshal(data)
@@ -85,20 +85,6 @@ func GetLobbyInfo() ([]Player, string, error) {
 	return lobbyInfo, string(body), nil
 }
 
-func DisplayLobbyStatus() error {
-	lobbyInfo, rawResponse, err := GetLobbyInfo()
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("Raw response:", rawResponse)
-
-	for _, player := range lobbyInfo {
-		fmt.Printf("Game Status: %s, Nick: %s\n", player.GameStatus, player.Nick)
-	}
-
-	return nil
-}
 func RefreshLobby(authToken string) error {
 	client := &http.Client{}
 

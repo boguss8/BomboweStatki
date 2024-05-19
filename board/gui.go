@@ -1,12 +1,11 @@
 package board
 
 import (
-	https_requests "BomboweStatki/https_requests"
-
 	gui "github.com/grupawp/warships-gui/v2"
 )
 
-func Config(playerToken string) (playerStates [10][10]gui.State, opponentStates [10][10]gui.State, shipStatus map[string]bool, err error) {
+// Config configures the game board
+func Config(playerToken string, getBoardInfo func(string) ([]string, error)) (playerStates [10][10]gui.State, opponentStates [10][10]gui.State, shipStatus map[string]bool, err error) {
 	playerStates = [10][10]gui.State{}
 	opponentStates = [10][10]gui.State{}
 
@@ -19,7 +18,7 @@ func Config(playerToken string) (playerStates [10][10]gui.State, opponentStates 
 
 	shipStatus = make(map[string]bool)
 
-	boardInfo, err := https_requests.GetBoardInfo(playerToken)
+	boardInfo, err := getBoardInfo(playerToken)
 	if err != nil {
 		return playerStates, opponentStates, shipStatus, err
 	}
@@ -31,6 +30,7 @@ func Config(playerToken string) (playerStates [10][10]gui.State, opponentStates 
 	return playerStates, opponentStates, shipStatus, nil
 }
 
+// GuiInit initializes the game GUI
 func GuiInit(playerStates [10][10]gui.State, opponentStates [10][10]gui.State) (ui *gui.GUI, playerBoard *gui.Board, opponentBoard *gui.Board) {
 	ui = gui.NewGUI(true)
 	boardConfig := gui.NewBoardConfig()
