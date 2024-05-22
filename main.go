@@ -19,7 +19,6 @@ func main() {
 			fmt.Print("Enter your choice: ")
 			_, err := fmt.Scanln(&choice)
 			if err != nil {
-				fmt.Println("Error reading choice:", err)
 				fmt.Println("Please enter 1, 2, 3 or 4.")
 				continue
 			}

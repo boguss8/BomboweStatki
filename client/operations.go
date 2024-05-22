@@ -279,7 +279,7 @@ func LeaveGame(playerToken string) error {
 
 	go func() {
 		<-c
-		fmt.Println("CTRL + \\ received. Leaving the game...")
+		fmt.Println("Leaving the game...")
 		err := AbandonGame(playerToken)
 		if err != nil {
 			fmt.Println("Error abandoning game:", err)

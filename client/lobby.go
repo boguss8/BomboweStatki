@@ -9,20 +9,26 @@ import (
 
 // lobby
 func AddToLobby() {
-	fmt.Print("Enter your username: ")
 	var username string
-	_, err := fmt.Scanln(&username)
-	if err != nil {
-		fmt.Println("Error reading username:", err)
-		return
+	for {
+		fmt.Print("Enter your username: ")
+		_, err := fmt.Scanln(&username)
+		if err != nil {
+			fmt.Println("Invalid input. Please enter a valid username.")
+			continue
+		}
+		break
 	}
 
-	fmt.Print("Enter your game description: ")
 	var desc string
-	_, err = fmt.Scanln(&desc)
-	if err != nil {
-		fmt.Println("Error reading game description:", err)
-		return
+	for {
+		fmt.Print("Enter your game description: ")
+		_, err := fmt.Scanln(&desc)
+		if err != nil {
+			fmt.Println("Invalid input. Please enter a valid game description.")
+			continue
+		}
+		break
 	}
 
 	playerToken, shipCoords, err := InitGame(username, desc, "")
@@ -38,7 +44,7 @@ func AddToLobby() {
 	for !gameStarted {
 		lobbyInfo, _, err := GetLobbyInfo()
 		if err != nil {
-			fmt.Println("Error getting lobby info:", err)
+			// fmt.Println("Error getting lobby info:", err)
 			return
 		}
 
@@ -66,7 +72,7 @@ func AddToLobby() {
 		return
 	}
 
-	// Launch the game board
+	// Launch game board
 	playerStates, opponentStates, shipStatus, err := board.Config(playerToken, shipCoords)
 	if err != nil {
 		fmt.Println(err)
@@ -161,7 +167,7 @@ func DisplayLobbyStatus() (bool, error) {
 	fmt.Println("Raw response:", rawResponse)
 
 	if len(lobbyInfo) == 0 {
-		return true, nil // Lobby is empty
+		return true, nil
 	}
 
 	for _, player := range lobbyInfo {

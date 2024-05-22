@@ -11,6 +11,23 @@ import (
 	"time"
 )
 
+type PlayerStats struct {
+	Games  int    `json:"games"`
+	Nick   string `json:"nick"`
+	Points int    `json:"points"`
+	Rank   int    `json:"rank"`
+	Wins   int    `json:"wins"`
+}
+
+type StatsResponse struct {
+	Stats []PlayerStats `json:"stats"`
+}
+
+type Player struct {
+	GameStatus string `json:"game_status"`
+	Nick       string `json:"nick"`
+}
+
 func InitGame(username string, desc string, opponentName string) (string, []string, error) {
 	data := map[string]interface{}{
 		"coords":      []string{"A2", "A4", "B9", "C7", "D1", "D2", "D3", "D4", "D7", "E7", "F1", "F2", "F3", "F5", "G5", "G8", "G9", "I4", "J4", "J8"},
@@ -38,11 +55,6 @@ func InitGame(username string, desc string, opponentName string) (string, []stri
 	playerToken := resp.Header.Get("x-auth-token")
 
 	return playerToken, data["coords"].([]string), nil
-}
-
-type Player struct {
-	GameStatus string `json:"game_status"`
-	Nick       string `json:"nick"`
 }
 
 func GetLobbyInfo() ([]Player, string, error) {
@@ -308,18 +320,6 @@ func GetGameDescription(playerToken string) (string, error) {
 	}
 
 	return gameDesc["opp_desc"], nil
-}
-
-type PlayerStats struct {
-	Games  int    `json:"games"`
-	Nick   string `json:"nick"`
-	Points int    `json:"points"`
-	Rank   int    `json:"rank"`
-	Wins   int    `json:"wins"`
-}
-
-type StatsResponse struct {
-	Stats []PlayerStats `json:"stats"`
 }
 
 func GetStats() ([]PlayerStats, error) {
