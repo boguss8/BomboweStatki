@@ -31,20 +31,36 @@ func AddToLobby() {
 		break
 	}
 
-	playerToken, shipCoords, err := InitGame(username, desc, "")
+	var bot bool
+	for {
+		fmt.Print("Choose an option:\n1. Wait for a player\n2. Fight with a bot\nEnter your choice: ")
+		var choice int
+		_, err := fmt.Scanln(&choice)
+		if err != nil || (choice != 1 && choice != 2) {
+			fmt.Println("Invalid input. Please enter 1 to wait for a player or 2 to fight with a bot.")
+			continue
+		}
+		if choice == 1 {
+			bot = false
+		} else {
+			bot = true
+		}
+		break
+	}
+
+	playerToken, shipCoords, err := InitGame(username, desc, "", bot)
 	if err != nil {
 		fmt.Println("Error initializing game:", err)
 		return
 	}
 
 	fmt.Println("Player added to lobby, waiting for an opponent...")
-	fmt.Println("Press Enter to exit...")
 
 	gameStarted := false
 	for !gameStarted {
 		lobbyInfo, _, err := GetLobbyInfo()
 		if err != nil {
-			// fmt.Println("Error getting lobby info:", err)
+			fmt.Println("Error getting lobby info:", err)
 			return
 		}
 
@@ -52,20 +68,21 @@ func AddToLobby() {
 		for _, player := range lobbyInfo {
 			if player.Nick == username {
 				userInLobby = true
-				if player.GameStatus != "waiting" {
-					fmt.Println("Game started!")
-					gameStarted = true
+				if player.GameStatus == "waiting" {
+					fmt.Println("Waiting for an opponent...")
+					gameStarted = false
+					refreshLobbyLoop(playerToken)
+					time.Sleep(1 * time.Second)
 					break
 				}
 			}
 		}
 
 		if !userInLobby {
-			fmt.Println("User not in lobby, refreshing...")
+			fmt.Println("User not in lobby")
+			gameStarted = true
 			break
 		}
-		refreshLobbyLoop(playerToken)
-		time.Sleep(1 * time.Second)
 	}
 
 	if !gameStarted {
@@ -99,16 +116,14 @@ func AddToLobby() {
 }
 
 func refreshLobbyLoop(playerToken string) {
-	for {
-		err := RefreshLobby(playerToken)
-		if err != nil {
-			fmt.Println("Error refreshing lobby:", err)
-			return
-		}
-		fmt.Println("Refreshed lobby")
-
-		time.Sleep(2 * time.Second)
+	err := RefreshLobby(playerToken)
+	if err != nil {
+		fmt.Println("Error refreshing lobby:", err)
+		return
 	}
+	fmt.Println("Refreshed lobby")
+
+	time.Sleep(2 * time.Second)
 }
 
 func ChallengeOpponent() {
@@ -194,7 +209,7 @@ func startGameWithOpponent(opponentUsername string) {
 		return
 	}
 
-	playerToken, shipCoords, err := InitGame(username, desc, opponentUsername)
+	playerToken, shipCoords, err := InitGame(username, desc, opponentUsername, false)
 	if err != nil {
 		fmt.Println("Error initializing game:", err)
 		return

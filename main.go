@@ -4,6 +4,7 @@ import (
 	"BomboweStatki/client"
 	"encoding/json"
 	"fmt"
+	"os"
 )
 
 func main() {
@@ -13,17 +14,18 @@ func main() {
 		fmt.Println("2. Challenge an opponent")
 		fmt.Println("3. Show top 10 players")
 		fmt.Println("4. Search for a player")
+		fmt.Println("5. Exit")
 
 		var choice int
 		for {
 			fmt.Print("Enter your choice: ")
 			_, err := fmt.Scanln(&choice)
 			if err != nil {
-				fmt.Println("Please enter 1, 2, 3 or 4.")
+				fmt.Println("Please enter a number between 1 and 5.")
 				continue
 			}
-			if choice != 1 && choice != 2 && choice != 3 && choice != 4 {
-				fmt.Println("Invalid choice. Please enter 1, 2, 3 or 4.")
+			if choice < 1 || choice > 5 {
+				fmt.Println("Invalid choice. Please enter a number between 1 and 5.")
 				continue
 			}
 			break
@@ -62,6 +64,9 @@ func main() {
 			}
 			player := statsMap["stats"]
 			DisplayPlayerStats(player)
+		case 5:
+			fmt.Println("Exiting...")
+			os.Exit(0)
 		default:
 			fmt.Println("Invalid choice. Please try again.")
 		}

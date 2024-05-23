@@ -28,13 +28,13 @@ type Player struct {
 	Nick       string `json:"nick"`
 }
 
-func InitGame(username string, desc string, opponentName string) (string, []string, error) {
+func InitGame(username string, desc string, opponentName string, bot bool) (string, []string, error) {
 	data := map[string]interface{}{
 		"coords":      []string{"A2", "A4", "B9", "C7", "D1", "D2", "D3", "D4", "D7", "E7", "F1", "F2", "F3", "F5", "G5", "G8", "G9", "I4", "J4", "J8"},
 		"desc":        desc,
 		"nick":        username,
 		"target_nick": opponentName,
-		"wpbot":       true,
+		"wpbot":       bot,
 	}
 
 	jsonData, err := json.Marshal(data)
