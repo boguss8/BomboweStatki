@@ -28,13 +28,35 @@ type Player struct {
 	Nick       string `json:"nick"`
 }
 
-func InitGame(username string, desc string, opponentName string, bot bool) (string, []string, error) {
-	data := map[string]interface{}{
-		"coords":      []string{"A2", "A4", "B9", "C7", "D1", "D2", "D3", "D4", "D7", "E7", "F1", "F2", "F3", "F5", "G5", "G8", "G9", "I4", "J4", "J8"},
-		"desc":        desc,
-		"nick":        username,
-		"target_nick": opponentName,
-		"wpbot":       bot,
+type GameInitData struct {
+	Coords     []string
+	Desc       string
+	Nick       string
+	TargetNick string
+	Wpbot      bool
+}
+
+// Default values
+var DefaultGameInitData = GameInitData{
+	Coords:     []string{"A2", "A4", "B9", "C7", "D1", "D2", "D3", "D4", "D7", "E7", "F1", "F2", "F3", "F5", "G5", "G8", "G9", "I4", "J4", "J8"},
+	Desc:       "default_desc",
+	Nick:       "default_nick",
+	TargetNick: "default_target",
+	Wpbot:      false,
+}
+
+func InitGame(data GameInitData) (string, []string, error) {
+	if len(data.Coords) == 0 {
+		data.Coords = DefaultGameInitData.Coords
+	}
+	if data.Desc == "" {
+		data.Desc = DefaultGameInitData.Desc
+	}
+	if data.Nick == "" {
+		data.Nick = DefaultGameInitData.Nick
+	}
+	if data.TargetNick == "" {
+		data.TargetNick = DefaultGameInitData.TargetNick
 	}
 
 	jsonData, err := json.Marshal(data)
@@ -54,7 +76,7 @@ func InitGame(username string, desc string, opponentName string, bot bool) (stri
 
 	playerToken := resp.Header.Get("x-auth-token")
 
-	return playerToken, data["coords"].([]string), nil
+	return playerToken, data.Coords, nil
 }
 
 func GetLobbyInfo() ([]Player, string, error) {

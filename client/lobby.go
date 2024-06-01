@@ -2,9 +2,12 @@ package client
 
 import (
 	board "BomboweStatki/board"
+	game "BomboweStatki/game"
 	"context"
 	"fmt"
 	"time"
+
+	gui "github.com/grupawp/warships-gui/v2"
 )
 
 // lobby
@@ -47,8 +50,13 @@ func AddToLobby() {
 		}
 		break
 	}
-
-	playerToken, shipCoords, err := InitGame(username, desc, "", bot)
+	gameData := GameInitData{
+		Nick:       username,
+		Desc:       desc,
+		TargetNick: "",
+		Wpbot:      bot,
+	}
+	playerToken, shipCoords, err := InitGame(gameData)
 	if err != nil {
 		fmt.Println("Error initializing game:", err)
 		return
@@ -208,8 +216,13 @@ func startGameWithOpponent(opponentUsername string) {
 		fmt.Println("Error reading game description:", err)
 		return
 	}
-
-	playerToken, shipCoords, err := InitGame(username, desc, opponentUsername, false)
+	gameData := GameInitData{
+		Nick:       username,
+		Desc:       desc,
+		TargetNick: opponentUsername,
+		Wpbot:      false,
+	}
+	playerToken, shipCoords, err := InitGame(gameData)
 	if err != nil {
 		fmt.Println("Error initializing game:", err)
 		return
@@ -236,6 +249,78 @@ func startGameWithOpponent(opponentUsername string) {
 	go playerBoardOperations(playerToken, playerBoard, opponentStates, playerStates, ui, shipStatus, dataCoords)
 
 	ui.Start(context.TODO(), nil)
+}
+
+func ChangeShipLayout() {
+	playerShipCoordinates := DefaultGameInitData.Coords
+	playerStates, _, _, _ := board.Config("", playerShipCoordinates)
+	opponentStates := [10][10]gui.State{}
+	ui, _, opponentBoard := board.GuiInit(playerStates, opponentStates)
+
+	shipCoordinates := map[string]bool{}
+	shipsPlaced := 0
+	maxShips := 20
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		ui.Start(ctx, nil)
+	}()
+
+	for shipsPlaced < maxShips {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
+		char := opponentBoard.Listen(ctx)
+		if len(char) == 0 {
+			fmt.Println("Error: received empty input")
+			break
+		}
+		col := int(char[0] - 'A')
+		var row int
+		if len(char) == 3 {
+			row = 9
+		} else {
+			row = int(char[1] - '1')
+		}
+
+		coord := fmt.Sprintf("%c%d", 'A'+col, row+1)
+
+		if _, exists := shipCoordinates[coord]; exists {
+			ui.Draw(gui.NewText(1, 1, "Position already occupied. Choose a different spot.", nil))
+			continue
+		}
+
+		shipCoordinates[coord] = true
+		opponentStates[col][row] = gui.Ship
+		opponentBoard.SetStates(opponentStates)
+		shipsPlaced++
+
+		boardInfo := make([]string, 10)
+		for i, row := range opponentStates {
+			for _, state := range row {
+				switch state {
+				case gui.Hit:
+					boardInfo[i] += "H"
+				case gui.Miss:
+					boardInfo[i] += "M"
+				case gui.Ship:
+					boardInfo[i] += "S"
+				default:
+					boardInfo[i] += " "
+				}
+			}
+		}
+		game.UpdateBoardStates(opponentBoard, boardInfo)
+
+		ui.Draw(gui.NewText(1, 1, fmt.Sprintf("Ships placed: %d/%d", shipsPlaced, maxShips), nil))
+	}
+	ui.Draw(gui.NewText(1, 1, "New ship layout saved.", nil))
+
+	DefaultGameInitData.Coords = make([]string, 0, len(shipCoordinates))
+	for coord := range shipCoordinates {
+		DefaultGameInitData.Coords = append(DefaultGameInitData.Coords, coord)
+	}
 }
 
 func DisplayStats(stats []PlayerStats) {

@@ -30,7 +30,7 @@ func Config(playerToken string, shipCoords []string) (playerStates [10][10]gui.S
 }
 
 func GuiInit(playerStates [10][10]gui.State, opponentStates [10][10]gui.State) (ui *gui.GUI, playerBoard *gui.Board, opponentBoard *gui.Board) {
-	ui = gui.NewGUI(true)
+	ui = gui.NewGUI(false)
 	boardConfig := gui.NewBoardConfig()
 
 	boardConfig.HitColor = gui.NewColor(0, 255, 0)

@@ -4,28 +4,27 @@ import (
 	"BomboweStatki/client"
 	"encoding/json"
 	"fmt"
-	"os"
 )
+
+func DisplayOptions() {
+	fmt.Println("Choose an option:")
+	fmt.Println("1. Add yourself to the lobby")
+	fmt.Println("2. Challenge an opponent")
+	fmt.Println("3. Change your ship layout")
+	fmt.Println("4. Show top 10 players")
+	fmt.Println("5. Search for a player")
+}
 
 func main() {
 	for {
-		fmt.Println("Choose an option:")
-		fmt.Println("1. Add yourself to the lobby")
-		fmt.Println("2. Challenge an opponent")
-		fmt.Println("3. Show top 10 players")
-		fmt.Println("4. Search for a player")
-		fmt.Println("5. Exit")
+		DisplayOptions()
 
 		var choice int
 		for {
 			fmt.Print("Enter your choice: ")
 			_, err := fmt.Scanln(&choice)
-			if err != nil {
-				fmt.Println("Please enter a number between 1 and 5.")
-				continue
-			}
-			if choice < 1 || choice > 5 {
-				fmt.Println("Invalid choice. Please enter a number between 1 and 5.")
+			if err != nil || choice < 1 || choice > 6 {
+				DisplayOptions()
 				continue
 			}
 			break
@@ -34,39 +33,43 @@ func main() {
 		switch choice {
 		case 1:
 			client.AddToLobby()
+			DisplayOptions()
 		case 2:
 			client.ChallengeOpponent()
+			DisplayOptions()
 		case 3:
+			client.ChangeShipLayout()
+			DisplayOptions()
+		case 4:
 			stats, err := client.GetStats()
 			if err != nil {
 				fmt.Println(err)
-				break
+				continue
 			}
 			client.DisplayStats(stats)
-		case 4:
+		case 5:
 			fmt.Print("Enter the player's nickname: ")
 			var nick string
 			_, err := fmt.Scanln(&nick)
 			if err != nil {
 				fmt.Println("Error reading nickname:", err)
-				break
+				continue
 			}
 			playerStats, err := client.GetPlayerStats(nick)
 			if err != nil {
 				fmt.Println(err)
-				break
+				continue
 			}
 			var statsMap map[string]client.PlayerStats
 			err = json.Unmarshal([]byte(playerStats), &statsMap)
 			if err != nil {
 				fmt.Println("Error parsing player stats:", err)
-				break
+				continue
 			}
 			player := statsMap["stats"]
 			DisplayPlayerStats(player)
-		case 5:
-			fmt.Println("Exiting...")
-			os.Exit(0)
+		case 6:
+			fmt.Print(client.DefaultGameInitData.Coords)
 		default:
 			fmt.Println("Invalid choice. Please try again.")
 		}
