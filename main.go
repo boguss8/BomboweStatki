@@ -39,7 +39,6 @@ func main() {
 			DisplayOptions()
 		case 3:
 			client.ChangeShipLayout()
-			DisplayOptions()
 		case 4:
 			stats, err := client.GetStats()
 			if err != nil {

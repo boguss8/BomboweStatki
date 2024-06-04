@@ -1,16 +1,15 @@
 package client
 
 import (
-	board "BomboweStatki/board"
-	game "BomboweStatki/game"
+	"BomboweStatki/board"
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	gui "github.com/grupawp/warships-gui/v2"
 )
 
-// lobby
 func AddToLobby() {
 	var username string
 	for {
@@ -257,70 +256,102 @@ func ChangeShipLayout() {
 	opponentStates := [10][10]gui.State{}
 	ui, _, opponentBoard := board.GuiInit(playerStates, opponentStates)
 
-	shipCoordinates := map[string]bool{}
-	shipsPlaced := 0
-	maxShips := 20
+	newShipLayout := []string{}
+	shipTypes := []int{4, 3, 3, 2, 2, 2, 1, 1, 1, 1}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	go func() {
 		ui.Start(ctx, nil)
 	}()
 
-	for shipsPlaced < maxShips {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-		defer cancel()
+	for i := 0; i < len(shipTypes); i++ {
+
+		workingShip := make([]string, shipTypes[i])
+		ui.Draw(gui.NewText(1, 1, "Place the first piece of a ship size: "+strconv.Itoa(len(workingShip)), nil))
+
 		char := opponentBoard.Listen(ctx)
-		if len(char) == 0 {
-			fmt.Println("Error: received empty input")
-			break
-		}
-		col := int(char[0] - 'A')
-		var row int
-		if len(char) == 3 {
-			row = 9
-		} else {
-			row = int(char[1] - '1')
-		}
 
-		coord := fmt.Sprintf("%c%d", 'A'+col, row+1)
-
-		if _, exists := shipCoordinates[coord]; exists {
-			ui.Draw(gui.NewText(1, 1, "Position already occupied. Choose a different spot.", nil))
+		// Sprawdzamy, czy nowy układ statków jest pusty lub czy nowy element jest sąsiedni
+		if len(newShipLayout) > 0 || isAdjacentShip(char, newShipLayout, 2) {
+			ui.Draw(gui.NewText(1, 1, "Invalid placement, ships must not be adjacent to each other", nil))
 			continue
 		}
 
-		shipCoordinates[coord] = true
-		opponentStates[col][row] = gui.Ship
-		opponentBoard.SetStates(opponentStates)
-		shipsPlaced++
+		ui.Draw(gui.NewText(1, 1, fmt.Sprintf("Ships placed at: %s, Ships placed: %d/%d", char, i+1, len(newShipLayout)), nil))
 
-		boardInfo := make([]string, 10)
-		for i, row := range opponentStates {
-			for _, state := range row {
-				switch state {
-				case gui.Hit:
-					boardInfo[i] += "H"
-				case gui.Miss:
-					boardInfo[i] += "M"
-				case gui.Ship:
-					boardInfo[i] += "S"
-				default:
-					boardInfo[i] += " "
-				}
+		workingShip[0] = char
+		for j := 1; j < len(workingShip); {
+			char = opponentBoard.Listen(ctx)
+			if len(newShipLayout) > 0 || isAdjacentShip(char, newShipLayout, 2) {
+				ui.Draw(gui.NewText(1, 1, "XDDDInvalid placement, ships must not be adjacent to each other", nil))
+				continue
+			} else if isAdjacentShip(char, workingShip, 1) { // Pozwalamy tylko na poziome lub pionowe połączenie
+				workingShip[j] = char
+				j++
+				ui.Draw(gui.NewText(1, 1, fmt.Sprintf("Ships placed at: %s, Ships placed: %d/%d", char, i+1, len(newShipLayout)), nil))
 			}
 		}
-		game.UpdateBoardStates(opponentBoard, boardInfo)
-
-		ui.Draw(gui.NewText(1, 1, fmt.Sprintf("Ships placed: %d/%d", shipsPlaced, maxShips), nil))
+		newShipLayout = append(newShipLayout, workingShip...)
 	}
-	ui.Draw(gui.NewText(1, 1, "New ship layout saved.", nil))
 
-	DefaultGameInitData.Coords = make([]string, 0, len(shipCoordinates))
-	for coord := range shipCoordinates {
-		DefaultGameInitData.Coords = append(DefaultGameInitData.Coords, coord)
+	if len(newShipLayout) > 0 {
+		ui.Draw(gui.NewText(1, 1, "New ship layout saved.", nil))
+		DefaultGameInitData.Coords = make([]string, len(newShipLayout))
+		copy(DefaultGameInitData.Coords, newShipLayout)
+	} else {
+		ui.Draw(gui.NewText(1, 1, "No ships placed. New ship layout remains unchanged.", nil))
 	}
+}
+
+func isAdjacentShip(char string, ship []string, mode int) bool {
+	x := int(char[0] - 'A')
+	y, _ := strconv.Atoi(char[1:])
+
+	for _, c := range ship {
+		cx := int(c[0] - 'A')
+		cy, _ := strconv.Atoi(c[1:])
+
+		// Sprawdzenie, czy sąsiedztwo w pionie lub poziomie (tryb 1)
+		if mode == 1 && ((cx == x && (cy == y+1 || cy == y-1)) || (cy == y && (cx == x+1 || cx == x-1))) {
+			return true
+		}
+		// Sprawdzenie, czy sąsiedztwo w pionie, poziomie lub na skos (tryb 2)
+		if mode == 2 && (abs(cx-x) <= 1 && abs(cy-y) <= 1) {
+			return true
+		}
+	}
+	return false
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+func isValidPlacement(shipCoordinates map[string]bool, char string) (bool, string) {
+	col := int(char[0] - 'A')
+	var row int
+	if len(char) == 3 {
+		row = 9
+	} else {
+		row = int(char[1] - '1')
+	}
+	for i := -1; i <= 1; i++ {
+		for j := -1; j <= 1; j++ {
+			if i == 0 && j == 0 {
+				continue
+			}
+			checkCoord := fmt.Sprintf("%c%d", 'A'+col+i, row+1+j)
+			if _, exists := shipCoordinates[checkCoord]; exists {
+				return false, "Invalid placement, ships must not be adjacent to each other"
+			}
+		}
+	}
+	return true, ""
 }
 
 func DisplayStats(stats []PlayerStats) {
