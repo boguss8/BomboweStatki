@@ -2,8 +2,9 @@ package main
 
 import (
 	"BomboweStatki/client"
-	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
 )
 
 func DisplayOptions() {
@@ -38,6 +39,7 @@ func main() {
 			client.ChallengeOpponent()
 			DisplayOptions()
 		case 3:
+			clearScreen()
 			client.ChangeShipLayout()
 		case 4:
 			stats, err := client.GetStats()
@@ -54,27 +56,16 @@ func main() {
 				fmt.Println("Error reading nickname:", err)
 				continue
 			}
-			playerStats, err := client.GetPlayerStats(nick)
-			if err != nil {
-				fmt.Println(err)
-				continue
-			}
-			var statsMap map[string]client.PlayerStats
-			err = json.Unmarshal([]byte(playerStats), &statsMap)
-			if err != nil {
-				fmt.Println("Error parsing player stats:", err)
-				continue
-			}
-			player := statsMap["stats"]
-			DisplayPlayerStats(player)
-		case 6:
-			fmt.Print(client.DefaultGameInitData.Coords)
-		default:
-			fmt.Println("Invalid choice. Please try again.")
 		}
 	}
 }
 
 func DisplayPlayerStats(player client.PlayerStats) {
 	fmt.Printf("Nick: %s, Points: %d, Wins: %d, Games: %d, Rank: %d\n", player.Nick, player.Points, player.Wins, player.Games, player.Rank)
+}
+
+func clearScreen() {
+	cmd := exec.Command("clear")
+	cmd.Stdout = os.Stdout
+	cmd.Run()
 }
