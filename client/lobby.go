@@ -2,7 +2,6 @@ package client
 
 import (
 	"BomboweStatki/board"
-	game "BomboweStatki/game"
 	"context"
 	"errors"
 	"fmt"
@@ -261,118 +260,13 @@ func ChangeShipLayout() {
 	newShipLayout := []string{}
 	shipTypes := []int{4, 3, 3, 2, 2, 2, 1, 1, 1, 1}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	go editBoard(ui, opponentBoard, opponentStates, newShipLayout, shipTypes)
 
-	go func() {
-		ui.Start(ctx, nil)
-	}()
-
-	for i := 0; i < len(shipTypes); i++ {
-		workingShip := make([]string, shipTypes[i])
-		ui.Draw(gui.NewText(1, 1, "Place the first piece of a ship size: "+strconv.Itoa(len(workingShip)), nil))
-		char := opponentBoard.Listen(ctx)
-		if len(newShipLayout) > 0 {
-			if adjacent, err := isAdjacentShip(char, newShipLayout, 2); err != nil {
-				ui.Draw(gui.NewText(1, 27, "Error: "+err.Error(), nil))
-				i--
-				continue
-			} else if adjacent {
-				ui.Draw(gui.NewText(1, 27, "Invalid placement, ships must not be adjacent to each other", nil))
-				i--
-				continue
-			}
-		}
-		ui.Draw(gui.NewText(1, 2, fmt.Sprintf("Ships placed at: %s, Ships placed: %d/%d", char, i+1, len(shipTypes)), nil))
-
-		workingShip[0] = char
-		col := int(char[0] - 'A')
-		var row int
-		if len(char) == 3 {
-			row = 9
-		} else {
-			row = int(char[1] - '1')
-		}
-		opponentStates[col][row] = gui.Ship
-		boardInfo := make([]string, 10)
-		for i, row := range opponentStates {
-			for _, state := range row {
-				switch state {
-				case gui.Hit:
-					boardInfo[i] += "H"
-				case gui.Miss:
-					boardInfo[i] += "M"
-				case gui.Ship:
-					boardInfo[i] += "S"
-				default:
-					boardInfo[i] += " "
-				}
-			}
-		}
-		game.UpdateBoardStates(opponentBoard, boardInfo)
-
-		for j := 1; j < len(workingShip); {
-			ui.Draw(gui.NewText(1, 24, "char: "+fmt.Sprint(char), nil))
-			ui.Draw(gui.NewText(1, 25, "workingShip: "+fmt.Sprint(workingShip), nil))
-			ui.Draw(gui.NewText(1, 26, "newShipLayout: "+fmt.Sprint(len(newShipLayout)), nil))
-			char := opponentBoard.Listen(ctx)
-
-			if adjacent, err := isAdjacentShip(char, newShipLayout, 2); err != nil {
-				ui.Draw(gui.NewText(1, 24, "Error: "+err.Error(), nil))
-				continue
-			} else if adjacent {
-				ui.Draw(gui.NewText(1, 27, "Invalid placement, ships must not be adjacent to each other", nil))
-				continue
-			} else if adjacent, err := isAdjacentShip(char, workingShip, 1); err != nil {
-				ui.Draw(gui.NewText(1, 24, "Error: "+err.Error(), nil))
-				continue
-			} else if adjacent {
-				ui.Draw(gui.NewText(1, 24, "char: "+fmt.Sprint(char), nil))
-				ui.Draw(gui.NewText(1, 25, "workingShip: "+fmt.Sprint(workingShip), nil))
-				ui.Draw(gui.NewText(1, 26, "newShipLayout: "+fmt.Sprint(newShipLayout), nil))
-				workingShip[j] = char
-				col := int(char[0] - 'A')
-				var row int
-				if len(char) == 3 {
-					row = 9
-				} else {
-					row = int(char[1] - '1')
-				}
-				opponentStates[col][row] = gui.Ship
-				boardInfo := make([]string, 10)
-				for i, row := range opponentStates {
-					for _, state := range row {
-						switch state {
-						case gui.Hit:
-							boardInfo[i] += "H"
-						case gui.Miss:
-							boardInfo[i] += "M"
-						case gui.Ship:
-							boardInfo[i] += "S"
-						default:
-							boardInfo[i] += " "
-						}
-					}
-				}
-				game.UpdateBoardStates(opponentBoard, boardInfo)
-				j++
-				ui.Draw(gui.NewText(1, 1, fmt.Sprintf("Ships placed at: %s, Ships placed: %d/%d", char, i+1, len(newShipLayout)), nil))
-			}
-		}
-		newShipLayout = append(newShipLayout, workingShip...)
-	}
-
-	if len(newShipLayout) < 20 {
-		fmt.Println("No ships placed, using default layout")
-	} else {
-		fmt.Println("New ship layout saved")
-		DefaultGameInitData.Coords = make([]string, len(newShipLayout))
-		copy(DefaultGameInitData.Coords, newShipLayout)
-	}
+	ui.Start(context.TODO(), nil)
 
 }
 
-func isAdjacentShip(char string, ship []string, mode int) (bool, error) {
+func IsAdjacentShip(char string, ship []string, mode int) (bool, error) {
 	if len(ship) == 0 {
 		return false, nil
 	}
