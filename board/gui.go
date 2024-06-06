@@ -3,7 +3,7 @@ package board
 import (
 	"strconv"
 
-	gui "github.com/grupawp/warships-gui/v2"
+	gui "github.com/s25867/warships-gui/v2"
 )
 
 func Config(playerToken string, shipCoords []string) (playerStates [10][10]gui.State, opponentStates [10][10]gui.State, shipStatus map[string]bool, err error) {

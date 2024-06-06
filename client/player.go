@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	gui "github.com/grupawp/warships-gui/v2"
+	gui "github.com/s25867/warships-gui/v2"
 )
 
 func PlayerBoardOperations(playerToken string, playerBoard *gui.Board, opponentStates [10][10]gui.State, playerStates [10][10]gui.State, ui *gui.GUI, shipStatus map[string]bool, dataCoords []string) {

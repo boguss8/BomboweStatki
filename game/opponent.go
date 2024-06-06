@@ -1,6 +1,6 @@
 package game
 
-import gui "github.com/grupawp/warships-gui/v2"
+import gui "github.com/s25867/warships-gui/v2"
 
 func UpdateBoardStates(board *gui.Board, boardInfo []string) {
 	var newStates [10][10]gui.State

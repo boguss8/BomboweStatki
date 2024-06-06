@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	gui "github.com/grupawp/warships-gui/v2"
+	gui "github.com/s25867/warships-gui/v2"
 )
 
 func AddToLobby() {

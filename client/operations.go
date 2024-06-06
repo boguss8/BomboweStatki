@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	gui "github.com/grupawp/warships-gui/v2"
+	gui "github.com/s25867/warships-gui/v2"
 )
 
 // operations
@@ -20,6 +20,7 @@ func editBoard(ui *gui.GUI, opponentBoard *gui.Board, opponentStates [10][10]gui
 		workingShip := make([]string, shipTypes[i])
 		ui.Draw(gui.NewText(1, 1, "Place the first piece of a ship size: "+strconv.Itoa(len(workingShip)), nil))
 		char := opponentBoard.Listen(context.TODO())
+		ui.Draw(gui.NewText(1, 2, fmt.Sprintf("Ships placed at: %s, Ships placed: %d/%d", char, i, len(shipTypes)), nil))
 		if len(newShipLayout) > 0 {
 			if adjacent, err := IsAdjacentShip(char, newShipLayout, 2); err != nil {
 				ui.Draw(gui.NewText(1, 27, "Error: "+err.Error(), nil))
@@ -31,7 +32,6 @@ func editBoard(ui *gui.GUI, opponentBoard *gui.Board, opponentStates [10][10]gui
 				continue
 			}
 		}
-		ui.Draw(gui.NewText(1, 2, fmt.Sprintf("Ships placed at: %s, Ships placed: %d/%d", char, i, len(shipTypes)), nil))
 
 		workingShip[0] = char
 		col := int(char[0] - 'A')
