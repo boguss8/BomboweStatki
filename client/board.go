@@ -58,7 +58,7 @@ func editBoard(ui *gui.GUI, opponentBoard *gui.Board, opponentStates [10][10]gui
 		ctx := context.Background()
 		for {
 			if clicked := buttonArea.Listen(ctx); clicked == "exitButton" {
-				ui.Draw(gui.NewText(30, 24, "Exiting to main menu in 2 seconds...", nil))
+				ui.Draw(gui.NewText(30, 24, "Exiting to main menu in 2 seconds...", errorText))
 				time.Sleep(2 * time.Second)
 				go MainMenu(ui)
 				return
@@ -67,6 +67,8 @@ func editBoard(ui *gui.GUI, opponentBoard *gui.Board, opponentStates [10][10]gui
 	}()
 
 	for i := 0; i < len(shipTypes); i++ {
+
+		ui.Draw(gui.NewText(1, 2, "                                  ", errorText))
 		ui.Draw(gui.NewText(1, 1, fmt.Sprintf("Placing %x/10 ship of size %d", i+1, shipTypes[i]), nil))
 		//init map
 		ships := mapShips(newShipLayout)
@@ -92,7 +94,7 @@ func editBoard(ui *gui.GUI, opponentBoard *gui.Board, opponentStates [10][10]gui
 				}
 			}
 			if alreadyShot {
-				ui.Draw(gui.NewText(1, 2, "Coordinate already part of a ship!", nil))
+				ui.Draw(gui.NewText(1, 2, "Coordinate already part of a ship!", errorText))
 				j--
 				continue
 			}
@@ -114,7 +116,7 @@ func editBoard(ui *gui.GUI, opponentBoard *gui.Board, opponentStates [10][10]gui
 				}
 			}
 			if isInSurroundingArea {
-				ui.Draw(gui.NewText(1, 2, "Coordinate is in the surrounding area of a completed ship!", nil))
+				ui.Draw(gui.NewText(1, 2, "Coordinate is in the surrounding area of a completed ship!", errorText))
 				j--
 				continue
 			}
@@ -146,7 +148,7 @@ func editBoard(ui *gui.GUI, opponentBoard *gui.Board, opponentStates [10][10]gui
 					}
 				}
 				if destroyedShipsExist && !isAdjacentToDestroyedShip {
-					ui.Draw(gui.NewText(1, 2, "Coordinate is not adjacent the ship!", nil))
+					ui.Draw(gui.NewText(1, 2, "Coordinate is not adjacent the ship!", errorText))
 					j--
 					continue
 				}
@@ -215,9 +217,9 @@ func editBoard(ui *gui.GUI, opponentBoard *gui.Board, opponentStates [10][10]gui
 	}
 
 	if len(newShipLayout) < 20 {
-		ui.Draw(gui.NewText(1, 0, "Layout invalid, using default", nil))
+		ui.Draw(gui.NewText(1, 0, "Layout invalid, using default", errorText))
 	} else {
-		ui.Draw(gui.NewText(1, 0, "New ship layout saved", nil))
+		ui.Draw(gui.NewText(1, 0, "New ship layout saved", defaultText))
 		DefaultGameInitData.Coords = make([]string, len(newShipLayout))
 		copy(DefaultGameInitData.Coords, newShipLayout)
 	}
@@ -231,18 +233,20 @@ func opponentBoardOperations(ctx context.Context, playerToken string, opponentBo
 	var shotCoordinates []string
 	var fireMapMutex sync.Mutex
 	shipsShot := []string{}
-	var allShots []string
+	errorTextConfig := gui.NewTextConfig()
+	errorTextConfig.FgColor = gui.Red
+	errorTextConfig.BgColor = gui.Black
 	go func() {
 		ctx := context.Background()
 
 		for {
 			if clicked := btnArea.Listen(ctx); clicked == "exitButton" {
-				ui.Draw(gui.NewText(40, 24, "Leaving game...", nil))
+				ui.Draw(gui.NewText(40, 24, "Leaving game...", errorTextConfig))
 				_, err := retryOnError(ui, func() (string, error) {
 					return AbandonGame(playerToken)
 				})
 				if err != nil {
-					ui.Draw(gui.NewText(25, 24, "Error leaving game: "+err.Error(), nil))
+					ui.Draw(gui.NewText(25, 24, "Error leaving game: "+err.Error(), errorTextConfig))
 					continue
 				}
 
@@ -260,12 +264,13 @@ func opponentBoardOperations(ctx context.Context, playerToken string, opponentBo
 			var gameStatus string
 			var err error
 			var statusMap map[string]interface{}
+
 			for {
 				gameStatus, err = retryOnError(ui, func() (string, error) {
 					return GetGameStatus(playerToken)
 				})
 				if err != nil {
-					ui.Draw(gui.NewText(1, 28, "Error getting game status: "+err.Error(), nil))
+					ui.Draw(gui.NewText(1, 28, "Error getting game status: "+err.Error(), errorTextConfig))
 					continue
 				}
 
@@ -273,7 +278,7 @@ func opponentBoardOperations(ctx context.Context, playerToken string, opponentBo
 				err = json.Unmarshal([]byte(gameStatus), &statusMap)
 				statusMapMutex.Unlock()
 				if err != nil {
-					ui.Draw(gui.NewText(0, 0, "Error parsing game status no.%s: "+err.Error(), nil))
+					ui.Draw(gui.NewText(0, 0, "Error parsing game status no.%s: "+err.Error(), errorTextConfig))
 					continue
 				}
 
@@ -290,8 +295,6 @@ func opponentBoardOperations(ctx context.Context, playerToken string, opponentBo
 			char := opponentBoard.Listen(listenCtx)
 			cancel()
 
-			allShots = append(allShots, char)
-			ui.Draw(gui.NewText(1, 31, fmt.Sprintf("all: %s", allShots), nil))
 			col := int(char[0] - 'A')
 			var row int
 			if len(char) == 3 {
@@ -307,22 +310,20 @@ func opponentBoardOperations(ctx context.Context, playerToken string, opponentBo
 					break
 				}
 			}
-			if !found {
-				ui.Draw(gui.NewText(0, 2, fmt.Sprintf("shot coordinates %s", shotCoordinates), nil))
-			} else {
-				ui.Draw(gui.NewText(24, 2, "You have already fired at this coordinate", nil))
-				ui.Draw(gui.NewText(0, 2, fmt.Sprintf("shot coordinates %s", shotCoordinates), nil))
+			if found {
+				ui.Draw(gui.NewText(24, 2, "You have already fired at this coordinate", errorTextConfig))
 				continue
+			} else {
+				ui.Draw(gui.NewText(24, 2, "                                         ", errorTextConfig))
 			}
 
 			fireResponse, err := retryOnError(ui, func() (string, error) {
 				return FireAtEnemy(playerToken, char)
 			})
 			if err != nil {
-				ui.Draw(gui.NewText(1, 29, "Error firing at enemy: "+err.Error(), nil))
+				ui.Draw(gui.NewText(1, 29, "Error firing at enemy: "+err.Error(), errorTextConfig))
 				continue
 			}
-			ui.Draw(gui.NewText(1, 28, "Got response...", nil))
 			totalShots++
 
 			// Lock before accessing fireMap
@@ -383,7 +384,7 @@ func opponentBoardOperations(ctx context.Context, playerToken string, opponentBo
 					opponentStates[col][row] = gui.Miss
 				}
 			} else {
-				ui.Draw(gui.NewText(1, 29, "Error parsing fire response", nil))
+				ui.Draw(gui.NewText(1, 29, "Error parsing fire response", errorTextConfig))
 				continue
 			}
 			// Display fire accuracy
@@ -392,7 +393,7 @@ func opponentBoardOperations(ctx context.Context, playerToken string, opponentBo
 				shotAccuracy := (float64(successfulShots) / float64(totalShots)) * 100
 				shotAccuracyText = fmt.Sprintf("Shot accuracy: %.2f%%", shotAccuracy)
 			}
-			ui.Draw(gui.NewText(1, 26, shotAccuracyText, nil))
+			ui.Draw(gui.NewText(1, 26, shotAccuracyText, defaultText))
 			shotCoordinates = append(shotCoordinates, char)
 			opponentBoard.SetStates(opponentStates)
 		}
@@ -417,13 +418,13 @@ func processOpponentShots(playerToken string, playerStates [10][10]gui.State, ui
 			return GetGameStatus(playerToken)
 		})
 		if err != nil {
-			ui.Draw(gui.NewText(1, 28, "Error getting game status: "+err.Error(), nil))
+			ui.Draw(gui.NewText(1, 28, "Error getting game status: "+err.Error(), errorText))
 			return
 		}
 		var statusMap map[string]interface{}
 		err = json.Unmarshal([]byte(gameStatus), &statusMap)
 		if err != nil {
-			ui.Draw(gui.NewText(1, 28, "Error parsing game status: "+err.Error(), nil))
+			ui.Draw(gui.NewText(1, 28, "Error parsing game status: "+err.Error(), errorText))
 			return
 		}
 		oppShots, ok := statusMap["opp_shots"].([]interface{})
@@ -504,19 +505,18 @@ func displayGameStatus(ctx context.Context, playerToken string, ui *gui.GUI, can
 		case <-ctx.Done():
 			return
 		default:
-
 			gameStatus, err := retryOnError(ui, func() (string, error) {
 				return GetGameStatus(playerToken)
 			})
 			if err != nil {
-				ui.Draw(gui.NewText(1, 28, "Error getting game status: "+err.Error(), nil))
+				ui.Draw(gui.NewText(1, 28, "Error getting game status: "+err.Error(), errorText))
 				return
 			}
 
 			var statusMap map[string]interface{}
 			err = json.Unmarshal([]byte(gameStatus), &statusMap)
 			if err != nil {
-				ui.Draw(gui.NewText(1, 28, "Error getting game status: "+err.Error(), nil))
+				ui.Draw(gui.NewText(1, 28, "Error getting game status: "+err.Error(), errorText))
 				return
 			}
 
@@ -526,7 +526,7 @@ func displayGameStatus(ctx context.Context, playerToken string, ui *gui.GUI, can
 			timerValue, timerExists := statusMap["timer"].(float64)
 			if timerExists {
 				timerText := fmt.Sprintf("Timer: %.0f", timerValue)
-				ui.Draw(gui.NewText(43, 1, timerText, nil))
+				ui.Draw(gui.NewText(43, 1, timerText, defaultText))
 			}
 
 			if gameStatusExists && gameStatusStr != "ended" {
@@ -535,45 +535,48 @@ func displayGameStatus(ctx context.Context, playerToken string, ui *gui.GUI, can
 				if shouldFireExists && shouldFire {
 					shouldFireText = "Should fire: Yes"
 				}
-				ui.Draw(gui.NewText(40, 0, shouldFireText, nil))
+				ui.Draw(gui.NewText(40, 0, shouldFireText, defaultText))
 			}
 
 			// Display user details
 			userNick := DefaultGameInitData.Nick
-			ui.Draw(gui.NewText(2, 27, "User Nick: "+userNick, nil))
+			ui.Draw(gui.NewText(2, 27, "User Nick: "+userNick, defaultText))
 			userDesc := DefaultGameInitData.Desc
 			userDescChunks := splitIntoChunks(userDesc, 25)
 			for i, chunk := range userDescChunks {
-				ui.Draw(gui.NewText(2, 28+i, chunk, nil))
+				ui.Draw(gui.NewText(2, 28+i, chunk, defaultText))
 			}
 
 			// Display opponent details
 			opponent, opponentExists := statusMap["opponent"].(string)
 			if opponentExists {
-				ui.Draw(gui.NewText(60, 27, "Opponent Nick: "+opponent, nil))
+				ui.Draw(gui.NewText(60, 27, "Opponent Nick: "+opponent, defaultText))
 			}
 
 			oppDescValue, err := retryOnError(ui, func() (string, error) {
 				return GetGameDescription(playerToken)
 			})
 			if err != nil {
-				ui.Draw(gui.NewText(1, 28, "Error getting game status: "+err.Error(), nil))
+				ui.Draw(gui.NewText(1, 28, "Error getting game status: "+err.Error(), errorText))
 				return
 			}
 
 			oppDescChunks := splitIntoChunks(oppDescValue, 25)
 			for i, chunk := range oppDescChunks {
-				ui.Draw(gui.NewText(60, 28+i, chunk, nil))
+				ui.Draw(gui.NewText(60, 28+i, chunk, defaultText))
 			}
 			// Display end game status and return to main menu
 			if gameStatusExists && lastGameStatusExists && gameStatusStr == "ended" && lastGameStatus == "lose" {
-				ui.Draw(gui.NewText(3, 1, "Unfortunately You Lose", nil))
+				ui.Draw(gui.NewText(3, 1, "Unfortunately You Lose", errorText))
 				cancel()
 				time.Sleep(5 * time.Second)
 				go MainMenu(ui)
 
 			} else if gameStatusStr == "ended" && lastGameStatus == "win" {
-				ui.Draw(gui.NewText(3, 1, "Congratulations You Win", nil))
+				win := gui.NewTextConfig()
+				win.FgColor = gui.Green
+				win.BgColor = gui.Black
+				ui.Draw(gui.NewText(3, 1, "Congratulations You Win", win))
 				cancel()
 				time.Sleep(5 * time.Second)
 				go MainMenu(ui)

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"time"
@@ -60,9 +59,6 @@ func InitGame(data GameInitData) (string, error) {
 	if data.Nick == "" {
 		data.Nick = DefaultGameInitData.Nick
 	}
-	if data.TargetNick == "" {
-		data.TargetNick = DefaultGameInitData.TargetNick
-	}
 
 	jsonData, err := json.Marshal(data)
 	if err != nil {
@@ -75,7 +71,7 @@ func InitGame(data GameInitData) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
@@ -142,7 +138,7 @@ func RefreshLobby(authToken string) error {
 
 	req.Header.Add("X-Auth-Token", authToken)
 
-	for i := 0; i < 3; i++ { // Retry up to 3 times
+	for i := 0; i < 10; i++ { // Retry up to 3 times
 		resp, err := client.Do(req)
 		if err != nil {
 			return fmt.Errorf("error sending request: %v", err)
@@ -151,7 +147,7 @@ func RefreshLobby(authToken string) error {
 		if resp.StatusCode == http.StatusOK {
 			return nil
 		} else if resp.StatusCode == http.StatusServiceUnavailable {
-			time.Sleep(2 * time.Second) // Wait for 5 seconds before retrying
+			time.Sleep(50 * time.Millisecond)
 		} else {
 			return fmt.Errorf("received non-OK status code: %d", resp.StatusCode)
 		}

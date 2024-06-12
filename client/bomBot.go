@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"sync"
+	"time"
 
 	gui "github.com/s25867/warships-gui/v2"
 )
@@ -22,25 +23,25 @@ func bomBotInit(ui *gui.GUI, gameData GameInitData) {
 		return InitGame(gameData)
 	})
 	if err != nil {
-		ui.Draw(gui.NewText(1, 29, "Error initializing game: "+err.Error()+". Retrying...", nil))
+		ui.Draw(gui.NewText(1, 29, "Error initializing game: "+err.Error()+". Retrying...", errorText))
 	}
 
 	botToken, err := retryOnError(ui, func() (string, error) {
 		return InitGame(gameDataBot)
 	})
 	if err != nil {
-		ui.Draw(gui.NewText(1, 29, "Error initializing game: "+err.Error()+". Retrying...", nil))
+		ui.Draw(gui.NewText(1, 29, "Error initializing game: "+err.Error()+". Retrying...", errorText))
 	}
 
 	ui.NewScreen("game" + playerToken)
 	ui.SetScreen("game" + playerToken)
 	err = waitForStart(gameData.Nick, ui)
 	if err != nil {
-		ui.Draw(gui.NewText(1, 30, "Error waiting for game to start: "+err.Error(), nil))
+		ui.Draw(gui.NewText(1, 30, "Error waiting for game to start: "+err.Error(), errorText))
 	}
 	err = LaunchGameBoard(ui, playerToken, gameData)
 	if err != nil {
-		ui.Draw(gui.NewText(1, 31, err.Error(), nil))
+		ui.Draw(gui.NewText(1, 31, err.Error(), errorText))
 	}
 	go bomBotShots(ui, botToken)
 }
@@ -69,7 +70,7 @@ func bomBotShots(ui *gui.GUI, botToken string) {
 				return GetGameStatus(botToken)
 			})
 			if err != nil {
-				ui.Draw(gui.NewText(1, 28, "Error getting game status: "+err.Error(), nil))
+				ui.Draw(gui.NewText(1, 28, "Error getting game status: "+err.Error(), errorText))
 				continue
 			}
 
@@ -77,7 +78,7 @@ func bomBotShots(ui *gui.GUI, botToken string) {
 			err = json.Unmarshal([]byte(gameStatus), &statusMap)
 			statusMapMutex.Unlock()
 			if err != nil {
-				ui.Draw(gui.NewText(0, 0, "Error parsing game status no.%s: "+err.Error(), nil))
+				ui.Draw(gui.NewText(0, 0, "Error parsing game status no.%s: "+err.Error(), errorText))
 				continue
 			}
 
@@ -102,13 +103,13 @@ func bomBotShots(ui *gui.GUI, botToken string) {
 				randCoord = allCoords[randIndex]
 				allCoords = append(allCoords[:randIndex], allCoords[randIndex+1:]...)
 			} else {
-				ui.Draw(gui.NewText(1, 28, "Error calculating possible ship locations. Surrendering game...", nil))
-				ui.Draw(gui.NewText(40, 24, "Leaving game...", nil))
+				ui.Draw(gui.NewText(1, 28, "Error calculating possible ship locations. Surrendering game...", errorText))
+				ui.Draw(gui.NewText(40, 24, "Leaving game...", errorText))
 				_, err := retryOnError(ui, func() (string, error) {
 					return AbandonGame(botToken)
 				})
 				if err != nil {
-					ui.Draw(gui.NewText(25, 24, "Error leaving game: "+err.Error(), nil))
+					ui.Draw(gui.NewText(25, 24, "Error leaving game: "+err.Error(), errorText))
 					continue
 				}
 			}
@@ -118,10 +119,9 @@ func bomBotShots(ui *gui.GUI, botToken string) {
 			return FireAtEnemy(botToken, randCoord)
 		})
 		if err != nil {
-			ui.Draw(gui.NewText(1, 29, "Error firing at enemy: "+err.Error(), nil))
+			ui.Draw(gui.NewText(1, 29, "Error firing at enemy: "+err.Error(), errorText))
 			continue
 		}
-		ui.Draw(gui.NewText(1, 28, "Got response...", nil))
 
 		// Lock before accessing fireMap
 		fireMapMutex.Lock()
@@ -145,7 +145,7 @@ func bomBotShots(ui *gui.GUI, botToken string) {
 							// Check if the surrounding coordinate is in the list of all coordinates
 							if findIndex(allCoords, surrCoord) != -1 {
 								if adjacent, err := isAdjacentShip(surrCoord, ship.Coords, 1); err != nil {
-									ui.Draw(gui.NewText(1, 28, "Error: "+err.Error(), nil))
+									ui.Draw(gui.NewText(1, 28, "Error: "+err.Error(), errorText))
 								} else if adjacent {
 									// If the surrounding coordinate is adjacent to the ship, add it to the new surrounding area
 									newSurroundingArea = append(newSurroundingArea, surrCoord)
@@ -194,5 +194,6 @@ func bomBotShots(ui *gui.GUI, botToken string) {
 				}
 			}
 		}
+		time.Sleep(100 * time.Millisecond)
 	}
 }
