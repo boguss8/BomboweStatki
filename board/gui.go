@@ -6,7 +6,7 @@ import (
 	gui "github.com/s25867/warships-gui/v2"
 )
 
-func Config(playerToken string, shipCoords []string) (playerStates [10][10]gui.State, opponentStates [10][10]gui.State, shipStatus map[string]bool, err error) {
+func Config(shipCoords []string) (playerStates [10][10]gui.State, opponentStates [10][10]gui.State, shipStatus map[string]bool, err error) {
 	playerStates = [10][10]gui.State{}
 	opponentStates = [10][10]gui.State{}
 
@@ -29,23 +29,32 @@ func Config(playerToken string, shipCoords []string) (playerStates [10][10]gui.S
 	return playerStates, opponentStates, shipStatus, nil
 }
 
-func GuiInit(playerStates [10][10]gui.State, opponentStates [10][10]gui.State) (ui *gui.GUI, playerBoard *gui.Board, opponentBoard *gui.Board) {
-	ui = gui.NewGUI(false)
-	boardConfig := gui.NewBoardConfig()
+func GuiInit(ui *gui.GUI, playerStates [10][10]gui.State, opponentStates [10][10]gui.State) (playerBoard *gui.Board, opponentBoard *gui.Board, btnArea *gui.HandleArea) {
 
-	boardConfig.HitColor = gui.NewColor(0, 255, 0)
-	boardConfig.MissColor = gui.NewColor(255, 0, 0)
-	boardConfig.ShipColor = gui.NewColor(0, 0, 255)
+	boardConfig := gui.NewBoardConfig()
 
 	playerBoard = gui.NewBoard(1, 3, boardConfig)
 	opponentBoard = gui.NewBoard(50, 3, boardConfig)
 
-	ui.Draw(playerBoard)
-	ui.Draw(opponentBoard)
-	ui.Draw(gui.NewText(1, 28, "Press Ctrl+C to exit", nil))
+	exitButtonConfig := gui.NewButtonConfig()
+	exitButtonConfig.Width = 0
+	exitButtonConfig.Height = 0
+	exitButtonConfig.Width = 15
+	exitButtonConfig.BgColor = gui.Red
+	exitButton := gui.NewButton(40, 25, "Exit", exitButtonConfig)
+
+	btnMapping := map[string]gui.Spatial{
+		"exitButton": exitButton,
+	}
+	btnArea = gui.NewHandleArea(btnMapping)
+
+	ui.Draw(btnArea)
+	ui.Draw(exitButton)
 
 	playerBoard.SetStates(playerStates)
-	opponentBoard.SetStates(opponentStates)
 
-	return ui, playerBoard, opponentBoard
+	ui.Draw(playerBoard)
+	ui.Draw(opponentBoard)
+
+	return playerBoard, opponentBoard, btnArea
 }
