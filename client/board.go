@@ -29,19 +29,22 @@ func generateRandomBoard() []string {
 	for _, size := range shipSizes {
 		var shipCoords []string
 		for len(shipCoords) < size {
+			// Randomly select a starting coordinate
 			start := allCoords[rand.Intn(len(allCoords))]
 			if len(shipCoords) > 0 {
+				// Check if the starting coordinate is adjacent to the last coordinate
 				adjacent, err := isAdjacentShip(start, shipCoords, 1)
 				if err != nil || !adjacent {
 					continue
 				}
 			}
+			// Add the starting coordinate to the ship
 			shipCoords = append(shipCoords, start)
 			index := findIndex(allCoords, start)
 			allCoords = append(allCoords[:index], allCoords[index+1:]...)
 		}
 		board = append(board, shipCoords...)
-		for _, shipCoord := range shipCoords {
+		for _, shipCoord := range shipCoords { // Mark surrounding area as missed
 			for _, coord := range getSurroundingCoords(shipCoord) {
 				index := findIndex(allCoords, coord)
 				if index != -1 {
@@ -55,6 +58,7 @@ func generateRandomBoard() []string {
 
 func editBoard(ui *gui.GUI, opponentBoard *gui.Board, opponentStates [10][10]gui.State, newShipLayout []string, shipTypes []int, buttonArea *gui.HandleArea) {
 	go func() {
+		// Listen for exit button click
 		ctx := context.Background()
 		for {
 			if clicked := buttonArea.Listen(ctx); clicked == "exitButton" {
@@ -120,7 +124,7 @@ func editBoard(ui *gui.GUI, opponentBoard *gui.Board, opponentStates [10][10]gui
 				j--
 				continue
 			}
-
+			// Check if char is adjacent to any destroyed ship
 			if !alreadyShot && !isInSurroundingArea {
 				ships := mapShips(newShipLayout)
 
@@ -257,7 +261,7 @@ func opponentBoardOperations(ctx context.Context, playerToken string, opponentBo
 	var statusMapMutex sync.Mutex
 	for {
 		select {
-		case <-ctx.Done():
+		case <-ctx.Done(): // cancel context when the game ends
 			return
 		default:
 			// Get game status
@@ -266,6 +270,8 @@ func opponentBoardOperations(ctx context.Context, playerToken string, opponentBo
 			var statusMap map[string]interface{}
 
 			for {
+				time.Sleep(200 * time.Millisecond)
+				// Get game status
 				gameStatus, err = retryOnError(ui, func() (string, error) {
 					return GetGameStatus(playerToken)
 				})
@@ -274,6 +280,7 @@ func opponentBoardOperations(ctx context.Context, playerToken string, opponentBo
 					continue
 				}
 
+				// Lock before accessing statusMap
 				statusMapMutex.Lock()
 				err = json.Unmarshal([]byte(gameStatus), &statusMap)
 				statusMapMutex.Unlock()
@@ -294,7 +301,7 @@ func opponentBoardOperations(ctx context.Context, playerToken string, opponentBo
 			listenCtx, cancel := context.WithCancel(context.Background())
 			char := opponentBoard.Listen(listenCtx)
 			cancel()
-
+			// make row and col from char
 			col := int(char[0] - 'A')
 			var row int
 			if len(char) == 3 {
@@ -302,7 +309,7 @@ func opponentBoardOperations(ctx context.Context, playerToken string, opponentBo
 			} else {
 				row = int(char[1] - '1')
 			}
-
+			// check if the shot was already made
 			found := false
 			for _, coordinate := range shotCoordinates {
 				if coordinate == char {
@@ -316,7 +323,7 @@ func opponentBoardOperations(ctx context.Context, playerToken string, opponentBo
 			} else {
 				ui.Draw(gui.NewText(24, 2, "                                         ", errorTextConfig))
 			}
-
+			// get fire response
 			fireResponse, err := retryOnError(ui, func() (string, error) {
 				return FireAtEnemy(playerToken, char)
 			})
@@ -397,13 +404,14 @@ func opponentBoardOperations(ctx context.Context, playerToken string, opponentBo
 			shotCoordinates = append(shotCoordinates, char)
 			opponentBoard.SetStates(opponentStates)
 		}
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
 func playerBoardOperations(ctx context.Context, playerToken string, playerBoard *gui.Board, playerStates [10][10]gui.State, ui *gui.GUI, shipStatus map[string]bool, dataCoords []string) {
 	for {
 		select {
-		case <-ctx.Done():
+		case <-ctx.Done(): // cancel context when the game ends
 			return
 		default:
 			processOpponentShots(playerToken, playerStates, ui, shipStatus, playerBoard, dataCoords)
@@ -414,6 +422,8 @@ func playerBoardOperations(ctx context.Context, playerToken string, playerBoard 
 
 func processOpponentShots(playerToken string, playerStates [10][10]gui.State, ui *gui.GUI, shipStatus map[string]bool, playerBoard *gui.Board, dataCoords []string) {
 	for {
+		time.Sleep(200 * time.Millisecond)
+
 		gameStatus, err := retryOnError(ui, func() (string, error) {
 			return GetGameStatus(playerToken)
 		})
@@ -421,17 +431,22 @@ func processOpponentShots(playerToken string, playerStates [10][10]gui.State, ui
 			ui.Draw(gui.NewText(1, 28, "Error getting game status: "+err.Error(), errorText))
 			return
 		}
+
 		var statusMap map[string]interface{}
+
 		err = json.Unmarshal([]byte(gameStatus), &statusMap)
 		if err != nil {
 			ui.Draw(gui.NewText(1, 28, "Error parsing game status: "+err.Error(), errorText))
 			return
 		}
+
 		oppShots, ok := statusMap["opp_shots"].([]interface{})
 		if !ok || len(oppShots) == 0 {
 			break // No more shots to process
 		}
+
 		ships := mapShips(dataCoords)
+
 		for _, shot := range oppShots {
 			if coord, isString := shot.(string); isString {
 				col := int(coord[0] - 'A')
@@ -443,7 +458,7 @@ func processOpponentShots(playerToken string, playerStates [10][10]gui.State, ui
 				}
 
 				isHit := false
-				for _, staticCoord := range dataCoords {
+				for _, staticCoord := range dataCoords { // Check if the shot is a hit
 					if staticCoord == coord {
 						isHit = true
 						break
@@ -494,17 +509,20 @@ func processOpponentShots(playerToken string, playerStates [10][10]gui.State, ui
 				}
 			}
 		}
-
+		// Update the player board with the new states
 		playerBoard.SetStates(playerStates)
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
 func displayGameStatus(ctx context.Context, playerToken string, ui *gui.GUI, cancel context.CancelFunc) {
 	for {
 		select {
-		case <-ctx.Done():
+		case <-ctx.Done(): // cancel context when the game ends
 			return
 		default:
+			time.Sleep(200 * time.Millisecond)
+
 			gameStatus, err := retryOnError(ui, func() (string, error) {
 				return GetGameStatus(playerToken)
 			})
@@ -520,15 +538,18 @@ func displayGameStatus(ctx context.Context, playerToken string, ui *gui.GUI, can
 				return
 			}
 
+			// statuses for determining the end of the game
 			gameStatusStr, gameStatusExists := statusMap["game_status"].(string)
 			lastGameStatus, lastGameStatusExists := statusMap["last_game_status"].(string)
 
+			// timer
 			timerValue, timerExists := statusMap["timer"].(float64)
 			if timerExists {
 				timerText := fmt.Sprintf("Timer: %.0f", timerValue)
 				ui.Draw(gui.NewText(43, 1, timerText, defaultText))
 			}
 
+			// should fire text
 			if gameStatusExists && gameStatusStr != "ended" {
 				shouldFireText := "Should fire: No!"
 				shouldFire, shouldFireExists := statusMap["should_fire"].(bool)
@@ -560,12 +581,13 @@ func displayGameStatus(ctx context.Context, playerToken string, ui *gui.GUI, can
 				ui.Draw(gui.NewText(1, 28, "Error getting game status: "+err.Error(), errorText))
 				return
 			}
-
+			// display opp desc as chunks
 			oppDescChunks := splitIntoChunks(oppDescValue, 25)
 			for i, chunk := range oppDescChunks {
 				ui.Draw(gui.NewText(60, 28+i, chunk, defaultText))
 			}
-			// Display end game status and return to main menu
+
+			// Display end game status, cancel goroutines and return to main menu
 			if gameStatusExists && lastGameStatusExists && gameStatusStr == "ended" && lastGameStatus == "lose" {
 				ui.Draw(gui.NewText(3, 1, "Unfortunately You Lose", errorText))
 				cancel()
@@ -583,5 +605,6 @@ func displayGameStatus(ctx context.Context, playerToken string, ui *gui.GUI, can
 			}
 
 		}
+		time.Sleep(100 * time.Millisecond)
 	}
 }

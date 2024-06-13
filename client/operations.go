@@ -23,10 +23,11 @@ type GameStatusResponse struct {
 	ShouldFire     bool     `json:"should_fire"`
 }
 
-func waitForChallenger(ui *gui.GUI, playerToken string, gameData GameInitData, cancel context.CancelFunc) {
+func waitForStart(ui *gui.GUI, playerToken string, gameData GameInitData, cancel context.CancelFunc) {
 	isWaitingForChallenger = true
 	gameStarted := false
 	userInLobby := false
+
 	for !gameStarted || !userInLobby {
 		lobbyInfo, _, err := retryOnErrorWithPlayers(ui, func() ([]Player, string, error) {
 			return GetLobbyInfo()
@@ -37,6 +38,7 @@ func waitForChallenger(ui *gui.GUI, playerToken string, gameData GameInitData, c
 
 		userInLobby = false
 		for _, player := range lobbyInfo {
+			// Check if the player is in the lobby and waiting for a game
 			if player.Nick == DefaultGameInitData.Nick {
 				userInLobby = true
 				if player.GameStatus == "waiting" {
@@ -46,7 +48,7 @@ func waitForChallenger(ui *gui.GUI, playerToken string, gameData GameInitData, c
 				}
 			}
 		}
-
+		// If the player is not in the lobby, check if he is in a game
 		if !userInLobby {
 			gameStatusResponse, err := retryOnError(ui, func() (string, error) {
 				return GetGameStatus(playerToken)
@@ -61,15 +63,14 @@ func waitForChallenger(ui *gui.GUI, playerToken string, gameData GameInitData, c
 				ui.Draw(gui.NewText(2, 0, "Error unmarshaling response: "+err.Error(), errorText))
 			}
 
-			if gameStatus.GameStatus == "game_in_progress" {
+			if gameStatus.GameStatus == "game_in_progress" { //if he is in a game, launch the board
 				cancel()
 				ui.NewScreen("game" + playerToken)
 				ui.SetScreen("game" + playerToken)
-				waitForStart(gameData.Nick, ui)
 				LaunchGameBoard(ui, playerToken, gameData)
 				isWaitingForChallenger = false
 				return
-			} else if gameStatus.GameStatus == "" {
+			} else if gameStatus.GameStatus == "" { // if he is not in a game, return to lobby
 				cancel()
 				go pvpMenu(ui, "", nil, nil, make(chan bool))
 				isWaitingForChallenger = false
@@ -81,6 +82,7 @@ func waitForChallenger(ui *gui.GUI, playerToken string, gameData GameInitData, c
 	isWaitingForChallenger = false
 }
 
+// Inits a board and launches editBoard
 func changeShipLayout(ui *gui.GUI) error {
 	ui.NewScreen("game")
 	ui.SetScreen("game")
@@ -151,6 +153,7 @@ func printTopPlayers(ui *gui.GUI, x, y int) {
 	}
 }
 
+// Start the game by collecting data and passing it to LaunchGameBoard
 func StartGame(ui *gui.GUI, gameData GameInitData) error {
 
 	playerToken, err := retryOnError(ui, func() (string, error) {
@@ -162,15 +165,9 @@ func StartGame(ui *gui.GUI, gameData GameInitData) error {
 
 	ui.NewScreen("game" + playerToken)
 	ui.SetScreen("game" + playerToken)
-	err = waitForStart(gameData.Nick, ui)
-	if err != nil {
-		ui.Draw(gui.NewText(1, 28, "Error waiting for game to start: "+err.Error(), errorText))
-	}
 
-	err = LaunchGameBoard(ui, playerToken, gameData)
-	if err != nil {
-		ui.Draw(gui.NewText(1, 28, err.Error(), errorText))
-	}
+	go waitForStart(ui, playerToken, gameData, context.CancelFunc(func() {}))
+
 	return errors.New("game ended")
 }
 
@@ -196,40 +193,6 @@ func LaunchGameBoard(ui *gui.GUI, playerToken string, gameData GameInitData) err
 	go opponentBoardOperations(ctx, playerToken, opponentBoard, opponentStates, ui, buttonArea)
 
 	go playerBoardOperations(ctx, playerToken, playerBoard, playerStates, ui, shipStatus, dataCoords)
-
-	return nil
-}
-
-func waitForStart(username string, ui *gui.GUI) error {
-	gameStarted := false
-	for !gameStarted {
-		lobbyInfo, _, err := retryOnErrorWithPlayers(ui, func() ([]Player, string, error) {
-			return GetLobbyInfo()
-		})
-		if err != nil {
-			ui.Draw(gui.NewText(2, 0, "Error getting lobby info: "+err.Error(), errorText))
-		}
-
-		userInLobby := false
-		for _, player := range lobbyInfo {
-			if player.Nick == username {
-				userInLobby = true
-				if player.GameStatus == "waiting" {
-					gameStarted = false
-					time.Sleep(1 * time.Second)
-					break
-				}
-			}
-		}
-
-		if !userInLobby {
-			return nil
-		}
-	}
-
-	if !gameStarted {
-		return nil
-	}
 
 	return nil
 }

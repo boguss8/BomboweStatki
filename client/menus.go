@@ -109,6 +109,7 @@ var isWaitingForChallenger bool
 func pvpMenu(ui *gui.GUI, playerToken string, timerContext context.Context, cancelTimer context.CancelFunc, reset chan bool) {
 	ui.NewScreen("lobby")
 	ui.SetScreen("lobby")
+	// get lobby info
 	lobbyInfo, _, err := retryOnErrorWithPlayers(ui, func() ([]Player, string, error) {
 		return GetLobbyInfo()
 	})
@@ -121,9 +122,11 @@ func pvpMenu(ui *gui.GUI, playerToken string, timerContext context.Context, canc
 	ctx := context.Background()
 	ui.Draw(gui.NewText(2, 9, "Click on an opponent to challenge him into a duel!", defaultText))
 	for {
+		//Listen what button was clicked
 		clicked := lobbyUi.ButtonArea.Listen(ctx)
 		switch clicked {
 		case "addYourselfButton":
+			// Adds player to lobby and starts the timer
 			gameData := GameInitData{
 				TargetNick: "",
 				Wpbot:      false,
@@ -137,9 +140,10 @@ func pvpMenu(ui *gui.GUI, playerToken string, timerContext context.Context, canc
 			timerContext, cancelTimer := context.WithCancel(context.Background())
 
 			go lobbyTimer(timerContext, reset, ui)
-			go waitForChallenger(ui, playerToken, gameData, cancelTimer)
+			go waitForStart(ui, playerToken, gameData, cancelTimer)
 			go pvpMenu(ui, playerToken, timerContext, cancelTimer, reset)
 		case "resetLobbyTimerButton":
+			// If user is in lobby reset the timer
 			if playerToken == "" {
 				go pvpMenu(ui, playerToken, timerContext, cancelTimer, reset)
 				ui.Draw(gui.NewText(0, 0, "You are not in lobby", errorText))
@@ -151,6 +155,7 @@ func pvpMenu(ui *gui.GUI, playerToken string, timerContext context.Context, canc
 			}
 
 		case "returnButton":
+			// Stops the timer and returns to main menu
 			if cancelTimer != nil {
 				cancelTimer()
 			}
@@ -158,16 +163,10 @@ func pvpMenu(ui *gui.GUI, playerToken string, timerContext context.Context, canc
 			go MainMenu(ui)
 			return
 		case "refreshButton":
-			lobbyInfo, _, err := retryOnErrorWithPlayers(ui, func() ([]Player, string, error) {
-				return GetLobbyInfo()
-			})
-			if err != nil {
-				ui.Draw(gui.NewText(2, 0, "Error getting lobby info: "+err.Error(), errorText))
-			}
-
-			lobbyUi = LobbyElements(ui, lobbyInfo)
+			// Refreshes the lobby
 			go pvpMenu(ui, playerToken, timerContext, cancelTimer, reset)
 		default:
+			// If player is not in lobby and clicked on a player, challenge him
 			if !isWaitingForChallenger {
 				for _, player := range lobbyInfo {
 					if player.Nick == clicked {
@@ -183,6 +182,8 @@ func pvpMenu(ui *gui.GUI, playerToken string, timerContext context.Context, canc
 						break
 					}
 				}
+			} else {
+				ui.Draw(gui.NewText(2, 2, "You are already waiting for a challenger...", errorText))
 			}
 		}
 	}

@@ -22,7 +22,7 @@ func retryOnErrorWithPlayerStats(ui *gui.GUI, serverRequest ServerRequestWithPla
 			return playerStats, nil
 		}
 		ui.Draw(gui.NewText(1, 28, "Error: "+err.Error()+". Retrying in 2 seconds...", errorText))
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	return playerStats, err
@@ -39,7 +39,7 @@ func retryOnErrorWithPlayers(ui *gui.GUI, serverRequest ServerRequestWithPlayers
 			return players, result, nil
 		}
 		ui.Draw(gui.NewText(1, 28, "Error: "+err.Error()+". Retrying in 2 seconds...", errorText))
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	return players, result, err
@@ -55,7 +55,7 @@ func retryOnError(ui *gui.GUI, serverRequest ServerRequest) (string, error) {
 			return result, nil
 		}
 		ui.Draw(gui.NewText(1, 28, "Error: "+err.Error()+". Retrying...", errorText))
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	return result, err

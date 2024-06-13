@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -18,14 +19,14 @@ func bomBotInit(ui *gui.GUI, gameData GameInitData) {
 		TargetNick: gameData.Nick,
 		Wpbot:      false,
 	}
-
+	//try to initialize the game
 	playerToken, err := retryOnError(ui, func() (string, error) {
 		return InitGame(gameData)
 	})
 	if err != nil {
 		ui.Draw(gui.NewText(1, 29, "Error initializing game: "+err.Error()+". Retrying...", errorText))
 	}
-
+	//try to initialize the game as a bot
 	botToken, err := retryOnError(ui, func() (string, error) {
 		return InitGame(gameDataBot)
 	})
@@ -35,15 +36,12 @@ func bomBotInit(ui *gui.GUI, gameData GameInitData) {
 
 	ui.NewScreen("game" + playerToken)
 	ui.SetScreen("game" + playerToken)
-	err = waitForStart(gameData.Nick, ui)
-	if err != nil {
-		ui.Draw(gui.NewText(1, 30, "Error waiting for game to start: "+err.Error(), errorText))
+
+	go waitForStart(ui, playerToken, gameData, context.CancelFunc(func() {}))
+	if !isWaitingForChallenger {
+		// after the game has started, start the shooting loop
+		go bomBotShots(ui, botToken)
 	}
-	err = LaunchGameBoard(ui, playerToken, gameData)
-	if err != nil {
-		ui.Draw(gui.NewText(1, 31, err.Error(), errorText))
-	}
-	go bomBotShots(ui, botToken)
 }
 
 func bomBotShots(ui *gui.GUI, botToken string) {
@@ -90,7 +88,7 @@ func bomBotShots(ui *gui.GUI, botToken string) {
 		}
 		var randCoord string = ""
 
-		//fire at ship or random
+		//fire at a random possible ship part
 		for _, ship := range botTable {
 			if ship.IsDestroyed == "false" && len(ship.SurroundingArea) > 0 {
 				randIndex := rand.Intn(len(ship.SurroundingArea))
@@ -99,10 +97,12 @@ func bomBotShots(ui *gui.GUI, botToken string) {
 		}
 		if randCoord == "" {
 			if len(allCoords) > 0 {
+				// Choose a random coordinate from the list of all coordinates
 				randIndex := rand.Intn(len(allCoords))
 				randCoord = allCoords[randIndex]
 				allCoords = append(allCoords[:randIndex], allCoords[randIndex+1:]...)
 			} else {
+				// If there are no coordinates left, abandon the game
 				ui.Draw(gui.NewText(1, 28, "Error calculating possible ship locations. Surrendering game...", errorText))
 				ui.Draw(gui.NewText(40, 24, "Leaving game...", errorText))
 				_, err := retryOnError(ui, func() (string, error) {
